@@ -174,9 +174,9 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] Unit tests for model validation + the `findings` reducer
 
 ### Phase 4 — Diff ingest + content resolvers
-- [ ] `utils/diffing.py` — parse diff → `ChangedFile`s; `ContentResolver` protocol with **two impls**: `git_show_resolver(head_ref)` (`git show <ref>:<path>`, for `base...head`/CI) and hardened `working_tree_resolver` (refuse `../`, skip non-file/oversized; local fallback); ignore globs (defaults + `review.toml`)
-- [ ] `ingest` node picks the resolver from input (range/`head_ref` → git_show; else working-tree; no repo → diff-only)
-- [ ] Unit tests (added vs modified/renamed; deletes skipped; ignore globs; **git_show vs working-tree** incl. checkout state ≠ reviewed commit)
+- [x] `utils/diffing.py` — parse diff → `ChangedFile`s; `ContentResolver` protocol with **two impls**: `git_show_resolver(head_ref)` (`git show <ref>:<path>`, for `base...head`/CI) and hardened `working_tree_resolver` (refuse `../`, skip non-file/oversized; local fallback); ignore globs (defaults + `review.toml`)
+- [x] `ingest` node picks the resolver from input (range/`head_ref` → git_show; else working-tree; no repo → diff-only)
+- [x] Unit tests (added vs modified/renamed; deletes skipped; ignore globs; **git_show vs working-tree** incl. checkout state ≠ reviewed commit)
 
 ### Phase 5 — Detection
 - [ ] `utils/detect.py` — extension map + shebang fallback + special filenames → skill key
