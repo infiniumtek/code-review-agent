@@ -1,4 +1,4 @@
-"""Phase 1 smoke test: the placeholder graph compiles and runs START → END."""
+"""Smoke test: the compiled graph runs with an empty diff."""
 
 from code_review_agent.agent import agent
 

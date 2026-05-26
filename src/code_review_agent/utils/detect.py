@@ -7,8 +7,8 @@ with a shebang fallback for extensionless scripts.
 
 ``None`` is an explicit "not classified" outcome. Phase 6's missing-skill
 hard-fail applies only after a file has been classified as a programming
-language key; files with no detector signal are left out of review units until a
-mapping and matching skill are added.
+language key by this static detector; the detect node may still classify
+otherwise-unrecognized files through skill frontmatter-declared extensions.
 """
 
 from __future__ import annotations

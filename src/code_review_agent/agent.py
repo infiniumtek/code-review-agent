@@ -1,8 +1,7 @@
 """Compiled LangGraph agent.
 
-Phase 4 wires the scaffold through ``ingest`` so graph invocations now parse
-diff input into ``AgentState.files``. Detection, fan-out review, aggregation,
-and reporting land in later phases — see ``PLAN.md``.
+Phase 6 wires ingest through skill-backed detection. Fan-out review,
+aggregation, and reporting land in later phases — see ``PLAN.md``.
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
-from code_review_agent.utils.nodes import ingest
+from code_review_agent.utils.nodes import detect, ingest
 from code_review_agent.utils.state import AgentState
 
 
@@ -23,8 +22,10 @@ def build_agent() -> Any:
     """
     graph = StateGraph(AgentState)
     graph.add_node("ingest", ingest)
+    graph.add_node("detect", detect)
     graph.add_edge(START, "ingest")
-    graph.add_edge("ingest", END)
+    graph.add_edge("ingest", "detect")
+    graph.add_edge("detect", END)
     return graph.compile()
 
 
