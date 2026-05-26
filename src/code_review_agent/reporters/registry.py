@@ -11,6 +11,8 @@ import structlog
 from code_review_agent.config import ReviewConfig, Settings
 from code_review_agent.reporters.base import ReportContext, ReporterFn
 from code_review_agent.reporters.file import write_report as write_file_report
+from code_review_agent.reporters.github import write_report as write_github_report
+from code_review_agent.reporters.gitlab import write_report as write_gitlab_report
 from code_review_agent.reporters.terminal import write_report as write_terminal_report
 from code_review_agent.utils.state import AgentState
 
@@ -22,6 +24,8 @@ _DEFAULT_REPORT_DIR = Path(".")
 BUILTIN_REPORTERS: dict[str, ReporterFn] = {
     "terminal": write_terminal_report,
     "file": write_file_report,
+    "github": write_github_report,
+    "gitlab": write_gitlab_report,
 }
 
 
@@ -122,10 +126,20 @@ def _expand_auto_reporters(names: Sequence[str]) -> list[str]:
     expanded: list[str] = []
     for name in names:
         if name == "auto":
-            expanded.append("terminal")
+            expanded.extend(_auto_reporter_names())
         else:
             expanded.append(name)
     return expanded
+
+
+def _auto_reporter_names() -> list[str]:
+    if os.environ.get("GITHUB_ACTIONS"):
+        return ["github", "terminal"]
+    if os.environ.get("GITLAB_CI"):
+        return ["gitlab", "terminal"]
+    if os.environ.get("JENKINS_URL"):
+        return ["terminal", "file"]
+    return ["terminal", "file"]
 
 
 def _dedupe_preserving_order(names: Sequence[str]) -> list[str]:

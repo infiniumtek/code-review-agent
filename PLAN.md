@@ -224,8 +224,8 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] Unit tests (multi-reporter dispatch; one reporter failing doesn't block others)
 
 ### Phase 12 — Reporters: github + gitlab + auto-detect
-- [ ] `github` + `gitlab` reporters — **idempotent**: find the existing bot comment/note by a stable hidden marker (`<!-- code-review-agent -->`) and update in place, else create; `auto` expansion from `GITHUB_ACTIONS`/`GITLAB_CI`/`JENKINS_URL` (platform reporter + terminal; +file on Jenkins/unknown)
-- [ ] Unit tests (mocked HTTP/token; `auto` resolution per platform; comma-separated override; **re-run updates the same comment, no duplicate**)
+- [x] `github` + `gitlab` reporters — **idempotent**: find the existing bot comment/note by a stable hidden marker (`<!-- code-review-agent -->`) and update in place, else create; `auto` expansion from `GITHUB_ACTIONS`/`GITLAB_CI`/`JENKINS_URL` (platform reporter + terminal; +file on Jenkins/unknown)
+- [x] Unit tests (mocked HTTP/token; `auto` resolution per platform; comma-separated override; **re-run updates the same comment, no duplicate**)
 
 ### Phase 13 — CLI + entrypoint
 - [ ] `cli.py` — Typer app: read diff (stdin or `git diff`/range; a range sets `head_ref`), flags `--reporter`/`--config`/`--provider`/`--model`/`--fail-on`/`--allow-repo-skills`; wire to the compiled graph; exit codes per contract

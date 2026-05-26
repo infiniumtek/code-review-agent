@@ -26,8 +26,14 @@ from code_review_agent.utils.state import AgentState, Category, Finding, Severit
 
 @pytest.fixture(autouse=True)
 def _clear_reporter_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("REPORTER", raising=False)
-    monkeypatch.delenv("REPORT_DIR", raising=False)
+    for name in (
+        "REPORTER",
+        "REPORT_DIR",
+        "GITHUB_ACTIONS",
+        "GITLAB_CI",
+        "JENKINS_URL",
+    ):
+        monkeypatch.delenv(name, raising=False)
 
 
 def _finding(
@@ -243,7 +249,10 @@ def test_real_env_sentinel_values_still_override_review_toml(
         {"report": {"reporters": ["terminal", "file"], "report_dir": "build/reports"}}
     )
 
-    assert resolve_reporter_names(AgentState(), settings, review_config) == ["terminal"]
+    assert resolve_reporter_names(AgentState(), settings, review_config) == [
+        "terminal",
+        "file",
+    ]
     assert resolve_report_dir(settings, review_config) == Path(".")
 
 
@@ -265,11 +274,36 @@ def test_edited_dotenv_reporter_values_override_review_toml(
     assert resolve_report_dir(settings, review_config) == Path("dotenv-reports")
 
 
-def test_resolve_auto_reporter_defaults_to_terminal_for_phase_11(tmp_path: Path) -> None:
+def test_resolve_auto_reporter_defaults_to_terminal_and_file_for_unknown_ci(
+    tmp_path: Path,
+) -> None:
     settings = Settings(review_config=tmp_path / "review.toml", _env_file=None)
     review_config = ReviewConfig()
 
-    assert resolve_reporter_names(AgentState(), settings, review_config) == ["terminal"]
+    assert resolve_reporter_names(AgentState(), settings, review_config) == [
+        "terminal",
+        "file",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("env_name", "expected"),
+    [
+        ("GITHUB_ACTIONS", ["github", "terminal"]),
+        ("GITLAB_CI", ["gitlab", "terminal"]),
+        ("JENKINS_URL", ["terminal", "file"]),
+    ],
+)
+def test_resolve_auto_reporter_names_from_platform_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    env_name: str,
+    expected: list[str],
+) -> None:
+    monkeypatch.setenv(env_name, "true")
+    settings = Settings(review_config=tmp_path / "review.toml", _env_file=None)
+
+    assert resolve_reporter_names(AgentState(), settings, ReviewConfig()) == expected
 
 
 def test_explicit_empty_reporter_list_disables_reporters(tmp_path: Path) -> None:
