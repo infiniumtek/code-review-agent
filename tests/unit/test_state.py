@@ -133,10 +133,32 @@ def test_agent_state_defaults() -> None:
     assert state.diff == ""
     assert state.repo_root is None
     assert state.head_ref is None
+    assert state.llm_provider_override is None
+    assert state.llm_model_override is None
+    assert state.reporter_override is None
+    assert state.fail_on_override is None
     assert state.files == []
     assert state.units == []
     assert state.findings == []
     assert state.report == ""
+
+
+def test_review_task_state_override_defaults() -> None:
+    state = ReviewTaskState(unit=ReviewUnit(skill=_skill(), files=[]))
+    assert state.llm_provider_override is None
+    assert state.llm_model_override is None
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"llm_provider_override": "bogus"},
+        {"fail_on_override": "urgent"},
+    ],
+)
+def test_agent_state_rejects_unknown_override_values(kwargs: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        AgentState(**kwargs)
 
 
 # --- the findings reducer ----------------------------------------------------

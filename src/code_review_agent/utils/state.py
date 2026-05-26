@@ -30,6 +30,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
+from code_review_agent.types import FailOnThreshold, ProviderName
+
 Severity = Literal["info", "low", "medium", "high", "critical"]
 Category = Literal["bug", "security", "performance", "improvement"]
 ChangeKind = Literal["added", "modified", "renamed", "deleted"]
@@ -118,6 +120,8 @@ class ReviewTaskState(BaseModel):
     """
 
     unit: ReviewUnit
+    llm_provider_override: ProviderName | None = None
+    llm_model_override: str | None = None
     findings: Annotated[list[Finding], add] = Field(default_factory=list)
 
 
@@ -137,6 +141,10 @@ class AgentState(BaseModel):
     diff: str = ""
     repo_root: str | None = None
     head_ref: str | None = None
+    llm_provider_override: ProviderName | None = None
+    llm_model_override: str | None = None
+    reporter_override: str | None = None
+    fail_on_override: FailOnThreshold | None = None
     files: list[ChangedFile] = Field(default_factory=list)
     units: list[ReviewUnit] = Field(default_factory=list)
     findings: Annotated[list[Finding], add] = Field(default_factory=list)

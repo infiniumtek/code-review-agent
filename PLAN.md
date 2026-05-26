@@ -96,6 +96,8 @@ from pydantic import BaseModel, Field
 Severity = Literal["info", "low", "medium", "high", "critical"]
 Category = Literal["bug", "security", "performance", "improvement"]
 ChangeKind = Literal["added", "modified", "renamed", "deleted"]
+ProviderName = Literal["openai", "anthropic", "google"]
+FailOnThreshold = Literal["off", "info", "low", "medium", "high", "critical"]
 
 class ChangedFile(BaseModel):
     path: str
@@ -128,19 +130,25 @@ class ReviewResult(BaseModel):             # structured-output wrapper the LLM r
 
 class ReviewTaskState(BaseModel):          # INPUT state for ONE review fan-out branch (the Send payload)
     unit: ReviewUnit
+    llm_provider_override: ProviderName | None = None
+    llm_model_override: str | None = None
     findings: Annotated[list[Finding], add] = Field(default_factory=list)
 
 class AgentState(BaseModel):               # overall graph state
     diff: str = ""
     repo_root: str | None = None
     head_ref: str | None = None            # set for base...head runs → selects git_show_resolver
+    llm_provider_override: ProviderName | None = None
+    llm_model_override: str | None = None
+    reporter_override: str | None = None
+    fail_on_override: FailOnThreshold | None = None
     files: list[ChangedFile] = Field(default_factory=list)
     units: list[ReviewUnit] = Field(default_factory=list)
     findings: Annotated[list[Finding], add] = Field(default_factory=list)  # fan-out reducer
     report: str = ""
 ```
 
-`detect` populates `units`. The fan-out edge maps each unit to `Send("review", ReviewTaskState(unit=u))`; the **review node declares `ReviewTaskState` as its input schema** and returns `{"findings": [...]}`, which merges into `AgentState.findings` via the `add` reducer. Branches touch only `findings`; all other fields are set pre-fan-out. No checkpointer.
+`detect` populates `units`. The fan-out edge maps each unit to `Send("review", ReviewTaskState(unit=u, ...))`; the **review node declares `ReviewTaskState` as its input schema** and returns `{"findings": [...]}`, which merges into `AgentState.findings` via the `add` reducer. CLI override fields enter through `AgentState`; provider/model overrides are copied into each review branch, while reporter/fail-threshold overrides remain on `AgentState` for the report/CLI phases. Branches touch only `findings`; all other shared fields are set pre-fan-out. No checkpointer.
 
 ---
 
@@ -203,8 +211,8 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] Unit tests (dedupe; deterministic stable sort incl. `line=None` ordering; **out-of-scope `path` dropped/flagged**)
 
 ### Phase 10 — Graph wiring
-- [ ] `agent.py` — `StateGraph`; `START → ingest → detect`; conditional `Send` fan-out → `review`; `review → aggregate → report → END`
-- [ ] Integration test: compiled graph end-to-end with mocked LLM + a recorded diff fixture
+- [x] `agent.py` — `StateGraph`; `START → ingest → detect`; conditional `Send` fan-out → `review`; `review → aggregate → report → END`
+- [x] Integration test: compiled graph end-to-end with mocked LLM + a recorded diff fixture
 
 ### Phase 11 — Reporters: registry + terminal + file
 - [ ] `reporters/` registry that runs a **composable list** (each independent, failures non-fatal); `report` node resolves the list (CLI > env > `review.toml` > `auto`)

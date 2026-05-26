@@ -36,10 +36,12 @@ from pydantic_settings import (
     SettingsConfigDict,
 )
 
+from code_review_agent.types import FailOnThreshold, ProviderName
+
 log = structlog.get_logger(__name__)
 
-Provider = Literal["openai", "anthropic", "google"]
-FailOn = Literal["off", "info", "low", "medium", "high", "critical"]
+Provider = ProviderName
+FailOn = FailOnThreshold
 Environment = Literal["development", "staging", "production"]
 
 # Env markers set by the supported CI platforms (plus the generic ``CI``). Used

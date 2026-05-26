@@ -401,6 +401,37 @@ def test_skill_key_is_stamped_from_review_unit() -> None:
     assert findings[0].skill_key == "python"
 
 
+def test_review_node_uses_task_llm_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+    fake_llm = _FakeLLM(
+        structured=[ReviewResult(findings=[Finding.model_validate(_finding_payload())])]
+    )
+
+    def fake_get_llm(**kwargs: object) -> _FakeLLM:
+        captured.update(kwargs)
+        return fake_llm
+
+    monkeypatch.setattr(nodes, "get_llm", fake_get_llm)
+    base_task = _task()
+    task = ReviewTaskState(
+        unit=base_task.unit,
+        llm_provider_override="anthropic",
+        llm_model_override="claude-sonnet-4-5",
+    )
+
+    findings = review_unit_findings(
+        task,
+        review_config=_review_config(),
+        settings=_settings("openai"),
+        skill_body_loader=_skill_body_loader,
+    )
+
+    assert [finding.title for finding in findings] == ["Bad answer"]
+    assert captured["provider"] == "anthropic"
+    assert captured["model"] == "claude-sonnet-4-5"
+    assert fake_llm.structured_kwargs["method"] == "function_calling"
+
+
 def test_missing_llm_skill_key_is_filled_from_review_unit() -> None:
     payload = _finding_payload(title="Missing key")
     del payload["skill_key"]
