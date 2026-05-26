@@ -8,7 +8,7 @@ import pytest
 
 from code_review_agent import config
 from code_review_agent.agent import build_agent
-from code_review_agent.utils import nodes
+from code_review_agent.utils import node_review
 from code_review_agent.utils.state import Finding, ReviewResult
 
 
@@ -81,7 +81,7 @@ def test_compiled_graph_reviews_recorded_diff_with_mocked_llm(
     def fake_get_llm(**_: object) -> _FakeLLM:
         return fake_llm
 
-    monkeypatch.setattr(nodes, "get_llm", fake_get_llm)
+    monkeypatch.setattr(node_review, "get_llm", fake_get_llm)
 
     fixture = Path(__file__).parent / "fixtures" / "python_added.diff"
     result = build_agent().invoke({"diff": fixture.read_text(encoding="utf-8")})

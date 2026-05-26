@@ -25,6 +25,8 @@ diff source (Typer CLI `git diff` · stdin · CI job in the worker container)
 
 New languages/targets are added as **new `skills/<key>/SKILL.md` folders** — no graph changes. Reporters and (deferred) scanners are likewise registry additions.
 
+Node implementations are split by graph stage under `src/code_review_agent/utils/node_*.py`: `node_ingest.py`, `node_detect.py`, `node_review.py`, `node_aggregate.py`, and `node_report.py`. `utils/nodes.py` remains a thin compatibility export surface for the stable graph/test imports and should not accumulate implementation logic again.
+
 ### Reporters & output (all available, selected in config)
 
 All four reporters ship in v1 and are **composable** — enable any subset in `review.toml`:
@@ -68,6 +70,7 @@ A PR author controls the repo contents — including `review.toml` and any repo-
 | ------------- | ------------------------------------------------------------------------------------------------------- |
 | Framework     | **LangGraph** v1 `StateGraph` + `Send` fan-out (not `create_agent`/ReAct — pipeline is orchestrated)    |
 | Topology      | ingest → detect → `Send` fan-out → review → aggregate → report → END                                    |
+| Node modules  | Implementation split by stage in `utils/node_*.py`; `utils/nodes.py` only re-exports the public node surface |
 | Fan-out state | each `Send("review", ReviewTaskState(unit=u))`; review node's **input schema** = `ReviewTaskState`, returns `{"findings": …}` merged via the `add` reducer |
 | LLM provider  | **openai** default · `gpt-5-mini` · switchable to anthropic/google                                      |
 | Temperature   | `0.0`, **silently omitted** for gpt-5*/reasoning models that reject it                                   |
@@ -183,7 +186,7 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 
 ### Phase 4 — Diff ingest + content resolvers
 - [x] `utils/diffing.py` — parse diff → `ChangedFile`s; `ContentResolver` protocol with **two impls**: `git_show_resolver(head_ref)` (`git show <ref>:<path>`, for `base...head`/CI) and hardened `working_tree_resolver` (refuse `../`, skip non-file/oversized; local fallback); ignore globs (defaults + `review.toml`)
-- [x] `ingest` node picks the resolver from input (range/`head_ref` → git_show; else working-tree; no repo → diff-only)
+- [x] `ingest` node (`utils/node_ingest.py`) picks the resolver from input (range/`head_ref` → git_show; else working-tree; no repo → diff-only)
 - [x] Unit tests (added vs modified/renamed; deletes skipped; ignore globs; **git_show vs working-tree** incl. checkout state ≠ reviewed commit)
 
 ### Phase 5 — Detection
@@ -193,7 +196,7 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 ### Phase 6 — Skill loader / registry
 - [x] `skills/loader.py` — discover search paths: bundled `SKILLS_PATH` always; `review.toml [skills].extra_paths` **only when `ALLOW_REPO_SKILLS=true`** (else ignored + warned); parse frontmatter (L1 index); lazy body load (L2); resolve key → `SkillRef`
 - [x] `skills/errors.py` — `MissingSkillError`
-- [x] `detect` node: build `ReviewUnit`s, hard-fail on missing language skill, skip disabled/absent optional skills
+- [x] `detect` node (`utils/node_detect.py`): build `ReviewUnit`s, hard-fail on missing language skill, skip disabled/absent optional skills
 - [x] Unit tests (missing language → raises; disabled CI skill → skipped; enabled present → loaded; **extra_paths ignored when `ALLOW_REPO_SKILLS` unset**)
 
 ### Phase 7 — Prompt assembly + token budget + injection hardening
@@ -201,17 +204,18 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] Unit tests (under/over budget; modified-file context attach/skip; **prompt-injection fixture** — embedded "ignore previous instructions" in a diff/comment/CI YAML is not obeyed)
 
 ### Phase 8 — Review node + structured output
-- [x] `review` node — input schema `ReviewTaskState`; `with_structured_output(ReviewResult)` with a **per-provider method map** (json_schema / function-calling / json_mode as each supports); tolerant free-form-JSON fallback that **logs the raw response** on parse failure; retry/timeout; provider context-length errors from indivisible over-budget prompt chunks are logged and degrade to empty findings for that unit; returns `{"findings": […]}`
+- [x] `review` node (`utils/node_review.py`) — input schema `ReviewTaskState`; `with_structured_output(ReviewResult)` with a **per-provider method map** (json_schema / function-calling / json_mode as each supports); tolerant free-form-JSON fallback that **logs the raw response** on parse failure; retry/timeout; provider context-length errors from indivisible over-budget prompt chunks are logged and degrade to empty findings for that unit; returns `{"findings": […]}`
 - [x] **Normalize LLM-output scalars — lenient, never reject:** clamp a non-positive `Finding.line` (e.g. `0`/negative, an LLM artifact) → `None` rather than dropping the finding — a cosmetic location field must not sink a real finding (the model is *tolerant* by design). Optional paired guidance: adding `ge=1` to `Finding.line` in `state.py` only propagates a `minimum:1` schema hint to the LLM — adopt it **only with this clamp as the safety net**, never standalone (it would arm the rejection path).
 - [x] Unit tests with mocked LLM (clean structured; **malformed-but-salvageable** JSON via fallback; unsalvageable → logged + empty findings for that unit, run continues; context-length provider error → logged + empty findings for that unit, run continues; retry path; **`Finding.line=0`/negative coerced to `None`, finding retained**)
 
 ### Phase 9 — Aggregate
-- [x] `aggregate` node — dedupe + deterministic stable sort
+- [x] `aggregate` node (`utils/node_aggregate.py`) — dedupe + deterministic stable sort
 - [x] **Attribution filter:** drop (or flag) findings whose `Finding.path` matches no file in any reviewed `unit.files` — a hallucinated/misattributed path from structured output. (`Finding.path` is *never* used for filesystem access — reads go through the `ingest` `ContentResolver` on `ChangedFile.path` — so this is report hygiene, not a traversal guard.) Cross-object, so it lives here where all `units` + `findings` are in scope.
 - [x] Unit tests (dedupe; deterministic stable sort incl. `line=None` ordering; **out-of-scope `path` dropped/flagged**)
 
 ### Phase 10 — Graph wiring
 - [x] `agent.py` — `StateGraph`; `START → ingest → detect`; conditional `Send` fan-out → `review`; `review → aggregate → report → END`
+- [x] Node implementation refactor — graph stages live in focused `utils/node_*.py` modules; `utils/nodes.py` re-exports the public node names for compatibility
 - [x] Integration test: compiled graph end-to-end with mocked LLM + a recorded diff fixture
 
 ### Phase 11 — Reporters: registry + terminal + file

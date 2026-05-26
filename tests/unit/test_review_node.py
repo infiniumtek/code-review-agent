@@ -6,7 +6,7 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from code_review_agent.config import Provider, ReviewConfig, Settings
-from code_review_agent.utils import nodes
+from code_review_agent.utils import node_review
 from code_review_agent.utils.nodes import (
     _RAW_RESPONSE_LOG_LIMIT,
     _is_context_length_error,
@@ -239,7 +239,7 @@ def test_unsalvageable_fallback_logs_raw_response_and_returns_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_log = _FakeLog()
-    monkeypatch.setattr(nodes, "log", fake_log)
+    monkeypatch.setattr(node_review, "log", fake_log)
     fake_llm = _FakeLLM(
         structured=[RuntimeError("structured parser failed")],
         raw=[AIMessage(content="not json")],
@@ -260,7 +260,7 @@ def test_unsalvageable_fallback_logs_capped_raw_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_log = _FakeLog()
-    monkeypatch.setattr(nodes, "log", fake_log)
+    monkeypatch.setattr(node_review, "log", fake_log)
     raw = "not json " + ("x" * (_RAW_RESPONSE_LOG_LIMIT + 50))
     fake_llm = _FakeLLM(
         structured=[RuntimeError("structured parser failed")],
@@ -285,7 +285,7 @@ def test_invalid_finding_logs_capped_raw_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_log = _FakeLog()
-    monkeypatch.setattr(nodes, "log", fake_log)
+    monkeypatch.setattr(node_review, "log", fake_log)
     raw = (
         '{"findings":[{"path":"src/app.py","line":1,"severity":"not-real",'
         '"category":"bug","title":"Bad","detail":"'
@@ -315,7 +315,7 @@ def test_context_length_error_logs_and_returns_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_log = _FakeLog()
-    monkeypatch.setattr(nodes, "log", fake_log)
+    monkeypatch.setattr(node_review, "log", fake_log)
     fake_llm = _FakeLLM(
         structured=[RuntimeError("This model's maximum context length is 8192 tokens")]
     )
@@ -332,7 +332,7 @@ def test_context_length_error_skips_only_the_offending_chunk(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_log = _FakeLog()
-    monkeypatch.setattr(nodes, "log", fake_log)
+    monkeypatch.setattr(node_review, "log", fake_log)
     fake_llm = _FakeLLM(
         structured=[
             ReviewResult(findings=[Finding.model_validate(_finding_payload(title="First"))]),
@@ -411,7 +411,7 @@ def test_review_node_uses_task_llm_overrides(monkeypatch: pytest.MonkeyPatch) ->
         captured.update(kwargs)
         return fake_llm
 
-    monkeypatch.setattr(nodes, "get_llm", fake_get_llm)
+    monkeypatch.setattr(node_review, "get_llm", fake_get_llm)
     base_task = _task()
     task = ReviewTaskState(
         unit=base_task.unit,

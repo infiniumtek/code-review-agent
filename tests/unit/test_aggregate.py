@@ -7,7 +7,7 @@ from typing import get_args
 import pytest
 from langgraph.types import Overwrite
 
-from code_review_agent.utils import nodes
+from code_review_agent.utils import node_aggregate
 from code_review_agent.utils.nodes import (
     _CATEGORY_RANK,
     _SEVERITY_RANK,
@@ -196,7 +196,7 @@ def test_aggregate_logs_severity_and_title_for_dropped_findings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_log = _FakeLog()
-    monkeypatch.setattr(nodes, "log", fake_log)
+    monkeypatch.setattr(node_aggregate, "log", fake_log)
     state = AgentState(
         units=[_unit("src/app.py")],
         findings=[
