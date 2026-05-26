@@ -1,0 +1,6 @@
+{
+  "dependencies": ["."],
+  "graphs": { "agent": "./src/code_review_agent/agent.py:agent" },
+  "env": "./.env",
+  "python_version": "3.13"
+}

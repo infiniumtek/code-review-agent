@@ -1,0 +1,32 @@
+# Keep the build context lean and reproducible (deps come from uv.lock, not a host .venv).
+.venv/
+.git/
+.gitignore
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Secrets & local-only files never enter the image
+.env
+.env.*
+
+# Tests and docs aren't needed at runtime
+tests/
+data/
+examples/
+*.md
+review-report.md
+review-report.json
+
+# LangGraph local dev
+.langgraph_api/
+
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/

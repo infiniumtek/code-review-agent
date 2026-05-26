@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "code-review-agent"
+version = "0.1.0"
+description = "LLM-first, multi-language code & CI/CD review agent on LangGraph, driven by portable Claude SKILL.md skills."
+requires-python = ">=3.13,<3.14"
+license = { text = "MIT" }
+authors = [{ name = "spanosg131" }]
+dependencies = [
+  # Orchestration — LangGraph v1.0 (StateGraph + Send fan-out). Checkpointer off (one-shot).
+  "langgraph>=1.0,<2",
+  "langchain-core>=1.0,<2",
+  # LLM providers (openai default · anthropic · google) — selectable via config.
+  "langchain-openai>=0.3",
+  "langchain-anthropic>=0.3",
+  "langchain-google-genai>=2.0",
+  # Data shapes & config.
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  # CLI / container entrypoint.
+  "typer>=0.12",
+  # SKILL.md YAML frontmatter parsing (review.toml uses stdlib tomllib).
+  "pyyaml>=6.0",
+  # Structured logging.
+  "structlog>=24.4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "langgraph-cli[inmem]>=0.2",
+  "pytest>=8.3",
+  "pytest-asyncio>=0.24",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "types-PyYAML>=6.0",
+]
+
+[project.scripts]
+code-review = "code_review_agent.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/code_review_agent"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+files = ["src"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+  "langgraph.*",
+  "langchain_core.*",
+  "langchain_openai.*",
+  "langchain_anthropic.*",
+  "langchain_google_genai.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

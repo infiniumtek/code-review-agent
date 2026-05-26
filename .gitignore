@@ -1,0 +1,37 @@
+# Secrets & local env
+.env
+.env.*
+!.env.example
+
+# Virtualenv (never committed; recreated via `make venv`)
+.venv/
+
+# Python bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Dynamic scratch / fixtures (static fixtures under data/ may be force-added)
+data/*
+!data/.gitkeep
+
+# Reporter artifacts (the `file` reporter writes these)
+review-report.md
+review-report.json
+
+# LangGraph local dev
+.langgraph_api/
+
+# OS / editor cruft
+.DS_Store
+*.swp
+.idea/
+.vscode/

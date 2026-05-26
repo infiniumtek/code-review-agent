@@ -1,0 +1,20 @@
+# Local/dev runner for the review worker.
+# Prod: drop the ./src bind mount — source is already baked into the image.
+#
+#   docker compose build
+#   git diff | docker compose run --rm review --reporter terminal
+
+services:
+  review:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: code-review-agent:dev
+    env_file:
+      - .env
+    working_dir: /workspace
+    volumes:
+      # The checkout to review (the `file` reporter writes its artifact here).
+      - .:/workspace
+      # Dev hot-reload of source — remove for prod.
+      - ./src:/app/src

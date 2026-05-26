@@ -1,0 +1,41 @@
+# review.toml — file-level configuration for code-review-agent.
+#
+# Trust model: in CI this file is read from the TRUSTED base ref (TRUSTED_CONFIG_REF),
+# never the PR head, so a PR cannot rewrite its own review rules. Local runs read the
+# working-tree copy. Secrets belong in env (.env) — never here.
+
+[skills]
+# Optional CI/infra skills to load. A language skill always loads when a file matches it;
+# a CI/infra skill (dockerfile, github-actions, gitlab-ci, jenkins) runs only if its
+# SKILL.md exists under SKILLS_PATH AND its key is listed here.
+enable = ["dockerfile", "github-actions", "gitlab-ci", "jenkins"]
+
+# Repo-local extra skill directories. IGNORED unless ALLOW_REPO_SKILLS=true (an env var
+# only the CI operator can set) — repo-provided skills are untrusted prompt input.
+extra_paths = []
+
+[review]
+# Per-unit prompt budget (~4 chars/token heuristic). Units over budget are chunked on
+# file/hunk boundaries and merged.
+max_unit_tokens = 100000
+
+# Glob patterns excluded from review (merged with built-in defaults).
+ignore = [
+  "**/*.lock",
+  "**/*.min.js",
+  "**/vendor/**",
+  "**/node_modules/**",
+  "**/dist/**",
+  "**/build/**",
+]
+
+[report]
+# Any subset of: terminal, file, github, gitlab — or "auto".
+# Precedence: CLI --reporter > REPORTER env > this list > "auto".
+reporters = ["auto"]
+
+# Where the `file` reporter writes review-report.md / review-report.json.
+report_dir = "."
+
+# Minimum finding severity that makes the run exit non-zero. "off" = never fail on findings.
+fail_on = "high"
