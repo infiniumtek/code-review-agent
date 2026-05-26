@@ -245,7 +245,7 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 
 ### Phase 17 — Tests + polish
 - [ ] End-to-end fixture integration test across multiple languages + one CI target
-- [ ] `README.md` — setup, CLI usage, CI wiring, trust model, writing a new skill
+- [ ] `README.md` — setup, CLI usage, CI wiring, trust model, writing a new skill, bulding docker image locally, running docker image locally
 - [ ] `make fmt lint type test` green on a clean checkout; tag `v0.1.0`
 
 ---
