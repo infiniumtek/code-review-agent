@@ -244,9 +244,9 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] **Dockerfile installs `git`** — runtime dep for the CLI/config `git diff`/`git show` (python:3.13-slim omits it; CI clones also need it). Examples set `safe.directory` (git "dubious ownership") and pass CI markers into the container (`docker run` does not inherit the runner env).
 
 ### Phase 17 — Tests + polish
-- [ ] End-to-end fixture integration test across multiple languages + one CI target
-- [ ] `README.md` — setup, CLI usage, CI wiring, trust model, writing a new skill, bulding docker image locally, running docker image locally
-- [ ] `make fmt lint type test` green on a clean checkout; tag `v0.1.0`
+- [x] End-to-end fixture integration test across multiple languages + one CI target
+- [x] `README.md` — setup, CLI usage, CI wiring, trust model, writing a new skill, bulding docker image locally, running docker image locally
+- [ ] `make fmt lint type test` green on a clean checkout; tag `v0.1.0` (checks green; tag deferred)
 
 ---
 

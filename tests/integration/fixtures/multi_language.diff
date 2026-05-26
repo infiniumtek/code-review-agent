@@ -1,0 +1,46 @@
+diff --git a/src/calc.py b/src/calc.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/calc.py
+@@ -0,0 +1,4 @@
++def divide(numerator, denominator):
++    # Computes a billing ratio
++    return numerator / denominator
++
+diff --git a/web/checkout.js b/web/checkout.js
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/web/checkout.js
+@@ -0,0 +1,4 @@
++export function render(comment) {
++  document.querySelector("#out").innerHTML = comment;
++}
++
+diff --git a/service/src/main/java/App.java b/service/src/main/java/App.java
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/service/src/main/java/App.java
+@@ -0,0 +1,5 @@
++public class App {
++  public static String greet(String name) {
++    return "Hello " + name;
++  }
++}
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/.github/workflows/ci.yml
+@@ -0,0 +1,9 @@
++name: CI
++on: [pull_request]
++jobs:
++  build:
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - run: echo "${{ github.event.pull_request.title }}"
++
