@@ -233,10 +233,10 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] Unit tests (arg parsing, range → git_show resolver, exit codes)
 
 ### Phase 14 — Seed language skills
-- [ ] `skills/python/SKILL.md`, `skills/javascript/SKILL.md`, `skills/java/SKILL.md` (expert-reviewer personas; valid frontmatter `name`/`description`/`metadata`)
+- [x] `skills/python/SKILL.md`, `skills/javascript/SKILL.md`, `skills/java/SKILL.md` (expert-reviewer personas; valid frontmatter `name`/`description`/`metadata`)
 
 ### Phase 15 — Optional CI/infra skills
-- [ ] `skills/dockerfile`, `skills/github-actions`, `skills/gitlab-ci`, `skills/jenkins` SKILL.md (config-gated)
+- [x] `skills/dockerfile`, `skills/github-actions`, `skills/gitlab-ci`, `skills/jenkins` SKILL.md (config-gated)
 
 ### Phase 16 — CI wrapper examples
 - [ ] `examples/github-action/action.yml`, `examples/gitlab-ci/.gitlab-ci.yml` snippet, `examples/jenkins/Jenkinsfile` stage (all invoke the same container/CLI; show `TRUSTED_CONFIG_REF`/artifact archiving)
