@@ -162,9 +162,9 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] `make install fmt lint type test` green; `uv.lock` committed
 
 ### Phase 2 — Config + LLM factory
-- [ ] `config.py` — `BaseSettings` (env, incl. `ALLOW_REPO_SKILLS`, `TRUSTED_CONFIG_REF`) + `review.toml` loader (`tomllib`) reading from the **trusted ref** in CI (base), the working tree locally
-- [ ] `llm.py` — `get_llm(provider, model, temperature)`; omit `temperature` for gpt-5*/reasoning models
-- [ ] Unit tests (mocked providers; gpt-5 temperature-omission; config trust: PR-head `review.toml` ignored when a trusted ref is set)
+- [x] `config.py` — `BaseSettings` (env, incl. `ALLOW_REPO_SKILLS`, `TRUSTED_CONFIG_REF`) + `review.toml` loader (`tomllib`) reading from the **trusted ref** in CI (base), the working tree locally
+- [x] `llm.py` — `get_llm(provider, model, temperature)`; omit `temperature` for gpt-5*/reasoning models
+- [x] Unit tests (mocked providers; gpt-5 temperature-omission; config trust: PR-head `review.toml` ignored when a trusted ref is set)
 
 ### Phase 3 — State models
 - [ ] `utils/state.py` per the sketch above (incl. `ReviewResult`, `ReviewTaskState`)
