@@ -170,8 +170,8 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] Unit tests (mocked providers; gpt-5 temperature-omission; config trust: PR-head `review.toml` ignored when a trusted ref is set)
 
 ### Phase 3 — State models
-- [ ] `utils/state.py` per the sketch above (incl. `ReviewResult`, `ReviewTaskState`)
-- [ ] Unit tests for model validation + the `findings` reducer
+- [x] `utils/state.py` per the sketch above (incl. `ReviewResult`, `ReviewTaskState`)
+- [x] Unit tests for model validation + the `findings` reducer
 
 ### Phase 4 — Diff ingest + content resolvers
 - [ ] `utils/diffing.py` — parse diff → `ChangedFile`s; `ContentResolver` protocol with **two impls**: `git_show_resolver(head_ref)` (`git show <ref>:<path>`, for `base...head`/CI) and hardened `working_tree_resolver` (refuse `../`, skip non-file/oversized; local fallback); ignore globs (defaults + `review.toml`)
