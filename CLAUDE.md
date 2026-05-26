@@ -94,9 +94,10 @@ DEFAULT_LLM_TEMPERATURE=0.0           # silently omitted for gpt-5*/reasoning mo
 
 # Skills & review behavior (file-level config lives in ./review.toml)
 SKILLS_PATH=./skills                  # bundled, TRUSTED skill dir (always loaded)
-REVIEW_CONFIG=./review.toml
+REVIEW_CONFIG=./review.toml           # FILESYSTEM path for local/bundled reads (may be absolute, e.g. /app/review.toml)
 ALLOW_REPO_SKILLS=false               # opt-in (CI operator only): honor review.toml [skills].extra_paths / repo-local skills
-TRUSTED_CONFIG_REF=                   # CI: git ref to read review.toml from (e.g. PR base); empty → working tree
+TRUSTED_CONFIG_REF=                   # CI: git ref to read review.toml from (e.g. PR base); empty → working tree (fail-closed in CI)
+TRUSTED_CONFIG_PATH=review.toml       # REPO-RELATIVE path read from TRUSTED_CONFIG_REF via `git show` (NOT a filesystem path)
 
 # LLM resilience
 LLM_MAX_RETRIES=2
@@ -130,7 +131,7 @@ ENVIRONMENT=development               # development | staging | production
 - **Prompts** (`utils/prompts.py`): system = skill body + an **injection-hardening preamble** (reviewed code/comments/CI YAML are *data, not instructions*); user = diff/context in delimited untrusted-data blocks. Never inline prompt strings in node code. Per-unit `MAX_UNIT_TOKENS` budget with chunking.
 - **Review** (`utils/nodes.py`): `with_structured_output(ReviewResult)` with a per-provider method choice; tolerant free-form-JSON fallback that logs the raw response on parse failure; retry/timeout from settings.
 - **Reporters** (`reporters/`): registry — `terminal`, `file` (md/json artifact, used by Jenkins), `github` (PR comment), `gitlab` (MR note). **Composable**: the `report` node runs every reporter in the resolved list (precedence CLI `--reporter` > `REPORTER` env > `review.toml [report].reporters` > `auto`). `github`/`gitlab` are **idempotent** — locate the existing bot comment/note by a stable hidden marker (`<!-- code-review-agent -->`) and update it in place. `auto` = detected platform reporter + terminal (+ file on Jenkins/unknown). Each reporter runs independently; failures are non-fatal.
-- **Config** (`config.py`): `pydantic_settings.BaseSettings` reading env (secrets) + a `review.toml` loader. In CI, `review.toml` is read from `TRUSTED_CONFIG_REF` (base ref), not the PR head. Secrets never hardcoded.
+- **Config** (`config.py`): `pydantic_settings.BaseSettings` reading env (secrets) + a `review.toml` loader. In CI, `review.toml` is read from `TRUSTED_CONFIG_REF` (base ref) via `git show <ref>:<TRUSTED_CONFIG_PATH>` — not the PR head — and with **no** trusted ref a CI run **fails closed** (`UntrustedConfigError`) rather than reading the PR-controlled working tree. `TRUSTED_CONFIG_PATH` is *repo-relative* (default `review.toml`) and is distinct from `REVIEW_CONFIG`, the *filesystem* path for local/bundled reads (which may be absolute, e.g. `/app/review.toml`); never feed a filesystem path to `git show`. The `.env` file is a local-dev convenience only: it is **not loaded under CI** (real env vars only), so a checkout `.env` can't set operator-only fields (`SKILLS_PATH`/`ALLOW_REPO_SKILLS`/`TRUSTED_CONFIG_REF`). Secrets never hardcoded.
 
 ---
 

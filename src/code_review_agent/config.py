@@ -21,6 +21,7 @@ the skills loader (Phase 6) resolves effective paths via
 
 from __future__ import annotations
 
+import os
 import subprocess  # read-only `git show` of a trusted ref; fixed argv, no shell
 import tomllib
 from functools import lru_cache
@@ -29,13 +30,39 @@ from typing import Literal
 
 import structlog
 from pydantic import BaseModel, Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
 
 log = structlog.get_logger(__name__)
 
 Provider = Literal["openai", "anthropic", "google"]
 FailOn = Literal["off", "info", "low", "medium", "high", "critical"]
 Environment = Literal["development", "staging", "production"]
+
+# Env markers set by the supported CI platforms (plus the generic ``CI``). Used
+# to fail closed on the trust boundary: in CI the checked-out working tree is
+# PR-controlled, so we neither load a checkout ``.env`` nor read a working-tree
+# ``review.toml`` without an explicit trusted ref.
+_CI_ENV_MARKERS: tuple[str, ...] = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL")
+
+
+def _is_ci() -> bool:
+    """True when running under a recognized CI platform."""
+    return any(os.environ.get(marker) for marker in _CI_ENV_MARKERS)
+
+
+class UntrustedConfigError(RuntimeError):
+    """Raised when CI would otherwise read PR-controlled ``review.toml``.
+
+    In CI the working-tree ``review.toml`` is owned by the PR author (untrusted),
+    so reading it would let a PR rewrite its own review rules (e.g. ``fail_on``,
+    ignore globs). Failing closed forces the operator to set
+    ``TRUSTED_CONFIG_REF`` to a trusted base ref — or explicitly to the current
+    ref to opt in to working-tree config.
+    """
 
 
 class Settings(BaseSettings):
@@ -45,6 +72,12 @@ class Settings(BaseSettings):
     (e.g. ``openai_api_key`` ← ``OPENAI_API_KEY``). Every field has a default so
     import never fails on a missing key; the LLM factory validates that the key
     for the *selected* provider is actually present at call time.
+
+    Precedence is init kwargs > real env vars > ``.env`` file. The ``.env`` file
+    is a **local-dev convenience only**: it is resolved relative to the current
+    working directory, which in CI may be the untrusted PR checkout, so it is
+    skipped entirely under CI (see :meth:`settings_customise_sources`). Operators
+    inject config via real env vars in CI.
     """
 
     model_config = SettingsConfigDict(
@@ -53,6 +86,25 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Drop the ``.env`` source under CI so a PR-supplied checkout ``.env``
+        cannot set operator-only fields (``SKILLS_PATH``, ``ALLOW_REPO_SKILLS``,
+        ``TRUSTED_CONFIG_REF``, …). Real env vars and init kwargs are unaffected.
+        """
+        sources: list[PydanticBaseSettingsSource] = [init_settings, env_settings]
+        if not _is_ci():
+            sources.append(dotenv_settings)
+        sources.append(file_secret_settings)
+        return tuple(sources)
 
     # --- LLM provider keys (at least one required, validated in llm.py) ---
     openai_api_key: str | None = None
@@ -66,10 +118,17 @@ class Settings(BaseSettings):
 
     # --- Skills & review behavior (file-level config lives in review.toml) ---
     skills_path: Path = Path("./skills")
+    # Filesystem path read for LOCAL (non-CI) runs and as the bundled in-image
+    # default; may be absolute (e.g. /app/review.toml). NOT used for the CI
+    # trusted-ref read — that uses the repo-relative `trusted_config_path` below.
     review_config: Path = Path("./review.toml")
     # Operator-only trust switches — a PR author cannot set these.
     allow_repo_skills: bool = False
     trusted_config_ref: str = ""
+    # Repo-relative path of review.toml *within* `trusted_config_ref`, passed to
+    # `git show <ref>:<path>`. Distinct from `review_config` (a filesystem path):
+    # an absolute filesystem path is not a valid `git show` repo path.
+    trusted_config_path: str = "review.toml"
 
     # --- LLM resilience ---
     llm_max_retries: int = 2
@@ -120,14 +179,16 @@ class ReviewConfig(BaseModel):
     report: ReportConfig = Field(default_factory=ReportConfig)
 
 
-def _git_show(ref: str, path: Path) -> str | None:
-    """Return ``git show <ref>:<path>`` text, or ``None`` if unavailable.
+def _git_show(ref: str, repo_path: str) -> str | None:
+    """Return ``git show <ref>:<repo_path>`` text, or ``None`` if unavailable.
 
-    Used to read ``review.toml`` from a trusted ref in CI. Read-only; never
-    touches the working tree, so it is correct regardless of checkout state.
+    ``repo_path`` is **repo-relative** (e.g. ``review.toml``), not a filesystem
+    path — ``git show`` resolves it from the repo root, so a leading ``./`` or
+    ``/`` is stripped. Read-only; never touches the working tree, so it is
+    correct regardless of checkout state.
     """
-    # git wants a repo-relative path with no leading "./" (Path already collapses it).
-    spec = f"{ref}:{path.as_posix()}"
+    repo_path = repo_path.removeprefix("./").lstrip("/")
+    spec = f"{ref}:{repo_path}"
     try:
         proc = subprocess.run(
             ["git", "show", spec],
@@ -136,13 +197,13 @@ def _git_show(ref: str, path: Path) -> str | None:
             check=False,
         )
     except FileNotFoundError:
-        log.warning("git_unavailable", ref=ref, path=path.as_posix())
+        log.warning("git_unavailable", ref=ref, path=repo_path)
         return None
     if proc.returncode != 0:
         log.warning(
             "trusted_config_unavailable",
             ref=ref,
-            path=path.as_posix(),
+            path=repo_path,
             stderr=proc.stderr.strip(),
         )
         return None
@@ -152,13 +213,22 @@ def _git_show(ref: str, path: Path) -> str | None:
 def _read_review_config_source(settings: Settings) -> str | None:
     """Return raw ``review.toml`` text from the trusted source, or ``None``.
 
-    CI (``TRUSTED_CONFIG_REF`` set) → the trusted base ref, never the PR head.
-    Local (ref empty) → the working-tree file.
+    Trusted ref set → ``git show <ref>:<trusted_config_path>`` (repo-relative),
+    never the PR head and never the filesystem ``review_config``. CI with no
+    trusted ref → :class:`UntrustedConfigError` (fail closed, never read the
+    PR-controlled working tree). Local with no trusted ref → the filesystem
+    ``review_config`` file.
     """
     ref = settings.trusted_config_ref.strip()
-    path = settings.review_config
     if ref:
-        return _git_show(ref, path)
+        return _git_show(ref, settings.trusted_config_path)
+    if _is_ci():
+        raise UntrustedConfigError(
+            "Running in CI without TRUSTED_CONFIG_REF: refusing to read the "
+            "PR-controlled working-tree review.toml. Set TRUSTED_CONFIG_REF to a "
+            "trusted base ref (or to the current ref to explicitly opt in)."
+        )
+    path = settings.review_config
     try:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -174,6 +244,9 @@ def load_review_config(settings: Settings | None = None) -> ReviewConfig:
     crashing on a missing/broken config. The returned config is faithful to the
     file; ``extra_paths`` gating is applied separately (see
     :func:`resolved_extra_paths`).
+
+    Raises :class:`UntrustedConfigError` in CI when no trusted ref is configured
+    — a deliberate fail-closed exit, not a graceful degradation.
     """
     settings = settings or get_settings()
     raw = _read_review_config_source(settings)

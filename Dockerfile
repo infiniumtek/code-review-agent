@@ -32,7 +32,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN useradd --create-home --uid 1000 appuser && chown -R appuser:appuser /app
 USER appuser
 
-# Bundled, trusted defaults (overridable at runtime).
+# Bundled, trusted defaults (overridable at runtime). REVIEW_CONFIG is the
+# FILESYSTEM fallback (local/non-CI reads); the CI trusted-ref read instead uses
+# the repo-relative TRUSTED_CONFIG_PATH (default "review.toml") via `git show`,
+# so this absolute path is never passed to git.
 ENV SKILLS_PATH=/app/skills \
     REVIEW_CONFIG=/app/review.toml
 

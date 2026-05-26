@@ -56,6 +56,9 @@ A PR author controls the repo contents — including `review.toml` and any repo-
 - **Repo-local extra skills are opt-in:** `review.toml [skills].extra_paths` (and any repo-provided skill dirs) are **ignored unless `ALLOW_REPO_SKILLS=true`** — an env var only the CI operator can set, not the repo. Off by default.
 - **Diffs are untrusted data:** the review prompt is injection-hardened (delimited content + explicit "data, not instructions"). Mitigation, not a guarantee — keep the worker's token scope and permissions least-privilege.
 - Skills stay **prompt-only** (no script execution); the agent never writes to the reviewed repo.
+- **Config sources are fail-closed in CI** (Phase 2, `config.py`): operator settings come from real env vars (which always win); the `.env` file is a local-dev convenience only and is **not loaded under CI** (`CI`/`GITHUB_ACTIONS`/`GITLAB_CI`/`JENKINS_URL`), so a PR-supplied checkout `.env` cannot set `SKILLS_PATH`/`ALLOW_REPO_SKILLS`/`TRUSTED_CONFIG_REF`. In CI with no `TRUSTED_CONFIG_REF`, reading `review.toml` **raises `UntrustedConfigError`** rather than silently reading the PR-controlled working tree (set the ref to a trusted base, or to the current ref to explicitly opt in).
+- **Two distinct config paths (don't conflate them):** `REVIEW_CONFIG` is a *filesystem* path used for local/bundled reads (may be absolute, e.g. `/app/review.toml`). The trusted-ref read uses a separate *repo-relative* `TRUSTED_CONFIG_PATH` (default `review.toml`) via `git show <ref>:<path>` — an absolute filesystem path is **not** a valid `git show` repo path, so the two namespaces must stay separate (regression fixed in Phase 2: a container with absolute `REVIEW_CONFIG` + a trusted ref was silently falling back to default config).
+- **Residual (entrypoint, Phase 7/13):** the `SKILLS_PATH`/`REVIEW_CONFIG` *defaults* are cwd-relative; if the entrypoint runs with cwd inside the checkout, `./skills`/`./review.toml` resolve into PR content. The Docker image/CI must pin `SKILLS_PATH` (and `REVIEW_CONFIG`, the filesystem fallback) to bundled **absolute** paths via real env vars, and the entrypoint should run with cwd **outside** the reviewed checkout (review via an explicit repo path). Note `REVIEW_CONFIG` being absolute is fine — only `TRUSTED_CONFIG_PATH` is fed to `git`.
 
 ---
 
@@ -212,6 +215,7 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 
 ### Phase 13 — CLI + entrypoint
 - [ ] `cli.py` — Typer app: read diff (stdin or `git diff`/range; a range sets `head_ref`), flags `--reporter`/`--config`/`--provider`/`--model`/`--fail-on`/`--allow-repo-skills`; wire to the compiled graph; exit codes per contract
+- [ ] **Trust hardening (residual P1):** entrypoint runs with cwd **outside** the reviewed checkout (review via an explicit repo path / `git -C`); Docker image + CI examples pin `SKILLS_PATH`/`REVIEW_CONFIG` to bundled absolute paths via real env vars so a PR-supplied checkout `.env`/`skills/`/`review.toml` is never sourced. (`config.py` already drops `.env` under CI and fails closed without `TRUSTED_CONFIG_REF` — Phase 2.) Surface `UntrustedConfigError` as a non-zero exit.
 - [ ] Unit tests (arg parsing, range → git_show resolver, exit codes)
 
 ### Phase 14 — Seed language skills

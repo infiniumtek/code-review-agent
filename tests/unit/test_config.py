@@ -12,9 +12,20 @@ from code_review_agent import config
 from code_review_agent.config import (
     ReviewConfig,
     Settings,
+    UntrustedConfigError,
     load_review_config,
     resolved_extra_paths,
 )
+
+CI_MARKERS = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL")
+
+
+@pytest.fixture(autouse=True)
+def _clear_ci_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Baseline = a local (non-CI) run, regardless of where the suite executes."""
+    for var in CI_MARKERS:
+        monkeypatch.delenv(var, raising=False)
+
 
 WORKING_TREE_TOML = """
 [skills]
@@ -99,11 +110,39 @@ def test_trusted_ref_unavailable_falls_back_to_defaults(
     assert cfg == ReviewConfig()
 
 
-def test_trusted_ref_end_to_end_with_real_git(
+def test_trusted_ref_reads_repo_relative_path_not_review_config(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """The trusted-ref read uses the repo-relative ``trusted_config_path``, never
+    the filesystem ``review_config`` (which may be an absolute bundled path that
+    is invalid as a ``git show`` repo path)."""
+    captured: dict[str, str] = {}
+
+    def fake_git_show(ref: str, repo_path: str) -> str:
+        captured["ref"] = ref
+        captured["repo_path"] = repo_path
+        return TRUSTED_TOML
+
+    monkeypatch.setattr(config, "_git_show", fake_git_show)
+    settings = _settings(
+        tmp_path,
+        review_config=Path("/app/review.toml"),  # absolute bundled path (Dockerfile)
+        trusted_config_ref="origin/main",  # trusted_config_path defaults to "review.toml"
+    )
+    cfg = load_review_config(settings)
+
+    assert captured["repo_path"] == "review.toml"  # repo-relative, NOT /app/review.toml
+    assert cfg.review.max_unit_tokens == 99999
+
+
+@pytest.mark.parametrize("repo_path", ["review.toml", "./review.toml", "/review.toml"])
+def test_trusted_ref_end_to_end_with_real_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, repo_path: str
+) -> None:
     """Real ``git show`` path: committed config is trusted, the dirty working
-    tree is ignored — independent of checkout state."""
+    tree is ignored — independent of checkout state. ``review_config`` is the
+    absolute bundled path (the container case), proving it is not fed to git;
+    leading ``./`` and ``/`` on the repo path are normalized away."""
 
     def git(*args: str) -> None:
         subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
@@ -118,7 +157,12 @@ def test_trusted_ref_end_to_end_with_real_git(
     (tmp_path / "review.toml").write_text(WORKING_TREE_TOML, encoding="utf-8")
 
     monkeypatch.chdir(tmp_path)
-    settings = _settings(tmp_path, review_config=Path("review.toml"), trusted_config_ref="HEAD")
+    settings = _settings(
+        tmp_path,
+        review_config=Path("/app/review.toml"),  # bundled absolute path, must not reach git
+        trusted_config_ref="HEAD",
+        trusted_config_path=repo_path,
+    )
     cfg = load_review_config(settings)
 
     assert cfg.review.max_unit_tokens == 99999  # from the committed (trusted) file
@@ -133,3 +177,64 @@ def test_resolved_extra_paths_ignored_without_allow_flag(tmp_path: Path) -> None
 def test_resolved_extra_paths_honored_with_allow_flag(tmp_path: Path) -> None:
     cfg = ReviewConfig.model_validate({"skills": {"extra_paths": ["./a", "./b"]}})
     assert resolved_extra_paths(cfg, _settings(tmp_path, allow_repo_skills=True)) == ["./a", "./b"]
+
+
+# --- P2: CI fail-closed when no trusted ref ---------------------------------
+
+
+@pytest.mark.parametrize("marker", CI_MARKERS)
+def test_ci_without_trusted_ref_fails_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, marker: str
+) -> None:
+    monkeypatch.setenv(marker, "true")
+    (tmp_path / "review.toml").write_text(WORKING_TREE_TOML, encoding="utf-8")  # PR-controlled
+    with pytest.raises(UntrustedConfigError):
+        load_review_config(_settings(tmp_path))  # trusted_config_ref defaults to ""
+
+
+def test_ci_with_trusted_ref_reads_trusted_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setattr(config, "_git_show", lambda ref, path: TRUSTED_TOML)
+    cfg = load_review_config(_settings(tmp_path, trusted_config_ref="origin/main"))
+    assert cfg.review.max_unit_tokens == 99999
+
+
+def test_local_without_trusted_ref_still_reads_working_tree(tmp_path: Path) -> None:
+    # No CI markers (autouse fixture) → local run reads the working tree as before.
+    (tmp_path / "review.toml").write_text(WORKING_TREE_TOML, encoding="utf-8")
+    cfg = load_review_config(_settings(tmp_path))
+    assert cfg.review.max_unit_tokens == 4242
+
+
+# --- P1: a PR-supplied checkout .env cannot set operator-only fields in CI ---
+
+
+def test_dotenv_loaded_locally(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("DEFAULT_LLM_MODEL", raising=False)
+    (tmp_path / ".env").write_text("DEFAULT_LLM_MODEL=from-dotenv\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert Settings().default_llm_model == "from-dotenv"  # cwd .env honored locally
+
+
+def test_dotenv_ignored_in_ci(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("DEFAULT_LLM_MODEL", raising=False)
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    (tmp_path / ".env").write_text(
+        "DEFAULT_LLM_MODEL=pr-injected\nALLOW_REPO_SKILLS=true\nSKILLS_PATH=./pr-skills\n",
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    settings = Settings()
+    # A checkout .env is not a config source under CI: defaults hold.
+    assert settings.default_llm_model == "gpt-5-mini"
+    assert settings.allow_repo_skills is False
+    assert settings.skills_path == Path("./skills")
+
+
+def test_real_env_var_still_overrides_in_ci(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Operator-injected real env vars remain authoritative in CI.
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    monkeypatch.setenv("DEFAULT_LLM_MODEL", "operator-pinned")
+    assert Settings(_env_file=None).default_llm_model == "operator-pinned"
