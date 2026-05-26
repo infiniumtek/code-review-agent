@@ -194,11 +194,13 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 
 ### Phase 8 — Review node + structured output
 - [ ] `review` node — input schema `ReviewTaskState`; `with_structured_output(ReviewResult)` with a **per-provider method map** (json_schema / function-calling / json_mode as each supports); tolerant free-form-JSON fallback that **logs the raw response** on parse failure; retry/timeout; returns `{"findings": […]}`
-- [ ] Unit tests with mocked LLM (clean structured; **malformed-but-salvageable** JSON via fallback; unsalvageable → logged + empty findings for that unit, run continues; retry path)
+- [ ] **Normalize LLM-output scalars — lenient, never reject:** clamp a non-positive `Finding.line` (e.g. `0`/negative, an LLM artifact) → `None` rather than dropping the finding — a cosmetic location field must not sink a real finding (the model is *tolerant* by design). Optional paired guidance: adding `ge=1` to `Finding.line` in `state.py` only propagates a `minimum:1` schema hint to the LLM — adopt it **only with this clamp as the safety net**, never standalone (it would arm the rejection path).
+- [ ] Unit tests with mocked LLM (clean structured; **malformed-but-salvageable** JSON via fallback; unsalvageable → logged + empty findings for that unit, run continues; retry path; **`Finding.line=0`/negative coerced to `None`, finding retained**)
 
 ### Phase 9 — Aggregate
 - [ ] `aggregate` node — dedupe + deterministic stable sort
-- [ ] Unit tests
+- [ ] **Attribution filter:** drop (or flag) findings whose `Finding.path` matches no file in any reviewed `unit.files` — a hallucinated/misattributed path from structured output. (`Finding.path` is *never* used for filesystem access — reads go through the `ingest` `ContentResolver` on `ChangedFile.path` — so this is report hygiene, not a traversal guard.) Cross-object, so it lives here where all `units` + `findings` are in scope.
+- [ ] Unit tests (dedupe; deterministic stable sort incl. `line=None` ordering; **out-of-scope `path` dropped/flagged**)
 
 ### Phase 10 — Graph wiring
 - [ ] `agent.py` — `StateGraph`; `START → ingest → detect`; conditional `Send` fan-out → `review`; `review → aggregate → report → END`
