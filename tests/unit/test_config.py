@@ -257,6 +257,44 @@ def test_dotenv_loaded_locally(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert Settings().default_llm_model == "from-dotenv"  # cwd .env honored locally
 
 
+def test_real_env_values_tolerate_preserved_inline_comments(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Some env-file loaders pass inline comments through as real env values."""
+    monkeypatch.setenv("DEFAULT_LLM_PROVIDER", "openai           # openai | anthropic | google")
+    monkeypatch.setenv("DEFAULT_LLM_TEMPERATURE", "0.0           # comment")
+    monkeypatch.setenv("SKILLS_PATH", "./skills                  # comment")
+    monkeypatch.setenv("REVIEW_CONFIG", "./review.toml           # comment")
+    monkeypatch.setenv("ALLOW_REPO_SKILLS", "false               # comment")
+    monkeypatch.setenv("TRUSTED_CONFIG_REF", "                   # comment")
+    monkeypatch.setenv("TRUSTED_CONFIG_PATH", "review.toml       # comment")
+    monkeypatch.setenv("REPORTER", "auto                         # comment")
+    monkeypatch.setenv("REPORT_DIR", ".                          # comment")
+    monkeypatch.setenv("LANGSMITH_TRACING", "false               # comment")
+    monkeypatch.setenv("ENVIRONMENT", "development               # comment")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.default_llm_provider == "openai"
+    assert settings.default_llm_temperature == 0.0
+    assert settings.skills_path == Path("skills")
+    assert settings.review_config == Path("review.toml")
+    assert settings.allow_repo_skills is False
+    assert settings.trusted_config_ref == ""
+    assert settings.trusted_config_path == "review.toml"
+    assert settings.reporter == "auto"
+    assert settings.report_dir == Path(".")
+    assert settings.langsmith_tracing is False
+    assert settings.environment == "development"
+
+
+def test_env_comment_normalization_preserves_hash_without_comment_space(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LANGSMITH_PROJECT", "team#project")
+    assert Settings(_env_file=None).langsmith_project == "team#project"
+
+
 def test_dotenv_ignored_in_ci(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DEFAULT_LLM_MODEL", raising=False)
     monkeypatch.setenv("GITHUB_ACTIONS", "true")

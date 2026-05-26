@@ -98,16 +98,23 @@ OPENAI_API_KEY=
 ANTHROPIC_API_KEY=
 GOOGLE_API_KEY=
 
-DEFAULT_LLM_PROVIDER=openai           # openai | anthropic | google
+# openai | anthropic | google
+DEFAULT_LLM_PROVIDER=openai
 DEFAULT_LLM_MODEL=gpt-5-mini
-DEFAULT_LLM_TEMPERATURE=0.0           # silently omitted for gpt-5*/reasoning models that reject it
+# Silently omitted for gpt-5*/reasoning models that reject it
+DEFAULT_LLM_TEMPERATURE=0.0
 
 # Skills & review behavior (file-level config lives in ./review.toml)
-SKILLS_PATH=./skills                  # bundled, TRUSTED skill dir (always loaded)
-REVIEW_CONFIG=./review.toml           # FILESYSTEM path for local/bundled reads (may be absolute, e.g. /app/review.toml)
-ALLOW_REPO_SKILLS=false               # opt-in (CI operator only): honor review.toml [skills].extra_paths / repo-local skills
-TRUSTED_CONFIG_REF=                   # CI: git ref to read review.toml from (e.g. PR base); empty → working tree (fail-closed in CI)
-TRUSTED_CONFIG_PATH=review.toml       # REPO-RELATIVE path read from TRUSTED_CONFIG_REF via `git show` (NOT a filesystem path)
+# Bundled, TRUSTED skill dir (always loaded)
+SKILLS_PATH=./skills
+# FILESYSTEM path for local/bundled reads (may be absolute, e.g. /app/review.toml)
+REVIEW_CONFIG=./review.toml
+# Opt-in (CI operator only): honor review.toml [skills].extra_paths / repo-local skills
+ALLOW_REPO_SKILLS=false
+# CI: git ref to read review.toml from (e.g. PR base); empty means working tree locally and fail-closed in CI
+TRUSTED_CONFIG_REF=
+# REPO-RELATIVE path read from TRUSTED_CONFIG_REF via `git show` (NOT a filesystem path)
+TRUSTED_CONFIG_PATH=review.toml
 
 # LLM resilience
 LLM_MAX_RETRIES=2
@@ -115,8 +122,10 @@ LLM_TIMEOUT_SECONDS=60
 
 # Reporters — composable; primary selection is review.toml [report].reporters.
 # Override here with a comma-separated subset. "auto" = detected platform reporter + terminal (+ file on Jenkins/unknown).
-REPORTER=auto                         # auto | comma-separated subset of: terminal,file,github,gitlab
-REPORT_DIR=.                          # local default; containers/CI should set this to a writable artifact mount
+# auto | comma-separated subset of: terminal,file,github,gitlab
+REPORTER=auto
+# Local default; containers/CI should set this to a writable artifact mount
+REPORT_DIR=.
 # Platform context is read from CI env (GITHUB_TOKEN, GITHUB_REPOSITORY, GITLAB_TOKEN, CI_*, etc.)
 
 # Optional observability
@@ -125,7 +134,8 @@ LANGSMITH_TRACING=false
 LANGSMITH_PROJECT=code-review-agent
 
 LOG_LEVEL=INFO
-ENVIRONMENT=development               # development | staging | production
+# development | staging | production
+ENVIRONMENT=development
 ```
 
 ---

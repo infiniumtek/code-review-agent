@@ -22,14 +22,15 @@ the skills loader (Phase 6) resolves effective paths via
 from __future__ import annotations
 
 import os
+import re
 import subprocess  # read-only `git show` of a trusted ref; fixed argv, no shell
 import tomllib
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import structlog
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -49,11 +50,19 @@ Environment = Literal["development", "staging", "production"]
 # PR-controlled, so we neither load a checkout ``.env`` nor read a working-tree
 # ``review.toml`` without an explicit trusted ref.
 _CI_ENV_MARKERS: tuple[str, ...] = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL")
+_INLINE_COMMENT_RE = re.compile(r"\s+#.*\Z")
 
 
 def _is_ci() -> bool:
     """True when running under a recognized CI platform."""
     return any(os.environ.get(marker) for marker in _CI_ENV_MARKERS)
+
+
+def _strip_inline_env_comment(value: Any) -> Any:
+    """Strip shell-style inline comments that some env-file loaders preserve."""
+    if not isinstance(value, str):
+        return value
+    return _INLINE_COMMENT_RE.sub("", value).strip()
 
 
 class UntrustedConfigError(RuntimeError):
@@ -148,6 +157,29 @@ class Settings(BaseSettings):
     # --- Misc ---
     log_level: str = "INFO"
     environment: Environment = "development"
+
+    @field_validator(
+        "default_llm_provider",
+        "default_llm_model",
+        "default_llm_temperature",
+        "skills_path",
+        "review_config",
+        "allow_repo_skills",
+        "trusted_config_ref",
+        "trusted_config_path",
+        "llm_max_retries",
+        "llm_timeout_seconds",
+        "reporter",
+        "report_dir",
+        "langsmith_tracing",
+        "langsmith_project",
+        "log_level",
+        "environment",
+        mode="before",
+    )
+    @classmethod
+    def _normalize_env_file_comments(cls, value: Any) -> Any:
+        return _strip_inline_env_comment(value)
 
 
 class SkillsConfig(BaseModel):
