@@ -17,7 +17,7 @@
 
 - **Python 3.13** · **uv** package manager · **`.venv` only** (never system Python)
 - **Pydantic v2** for all state, tool I/O, and config schemas
-- **LangGraph v1** (`langgraph>=1.0`, `langchain-core>=1.0`)
+- **LangGraph v1** (`langgraph>=1.0.2`, `langchain-core>=1.0`)
 - **Checkpointer: off** (one-shot run). No `langgraph-checkpoint-sqlite`. Add only on explicit request.
 - **LLM providers: OpenAI, Anthropic, Google only** — selectable via config. **Default: OpenAI `gpt-5-mini`.**
 - **Typer** CLI (= container entrypoint) · **PyYAML** for SKILL.md frontmatter · stdlib `tomllib` for `review.toml`

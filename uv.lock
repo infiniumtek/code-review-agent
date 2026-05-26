@@ -198,7 +198,7 @@ requires-dist = [
     { name = "langchain-core", specifier = ">=1.0,<2" },
     { name = "langchain-google-genai", specifier = ">=2.0" },
     { name = "langchain-openai", specifier = ">=0.3" },
-    { name = "langgraph", specifier = ">=1.0,<2" },
+    { name = "langgraph", specifier = ">=1.0.2,<2" },
     { name = "langgraph-cli", extras = ["inmem"], marker = "extra == 'dev'", specifier = ">=0.2" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11" },
     { name = "pydantic", specifier = ">=2.8" },

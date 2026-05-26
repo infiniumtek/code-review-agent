@@ -198,9 +198,9 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] Unit tests with mocked LLM (clean structured; **malformed-but-salvageable** JSON via fallback; unsalvageable → logged + empty findings for that unit, run continues; context-length provider error → logged + empty findings for that unit, run continues; retry path; **`Finding.line=0`/negative coerced to `None`, finding retained**)
 
 ### Phase 9 — Aggregate
-- [ ] `aggregate` node — dedupe + deterministic stable sort
-- [ ] **Attribution filter:** drop (or flag) findings whose `Finding.path` matches no file in any reviewed `unit.files` — a hallucinated/misattributed path from structured output. (`Finding.path` is *never* used for filesystem access — reads go through the `ingest` `ContentResolver` on `ChangedFile.path` — so this is report hygiene, not a traversal guard.) Cross-object, so it lives here where all `units` + `findings` are in scope.
-- [ ] Unit tests (dedupe; deterministic stable sort incl. `line=None` ordering; **out-of-scope `path` dropped/flagged**)
+- [x] `aggregate` node — dedupe + deterministic stable sort
+- [x] **Attribution filter:** drop (or flag) findings whose `Finding.path` matches no file in any reviewed `unit.files` — a hallucinated/misattributed path from structured output. (`Finding.path` is *never* used for filesystem access — reads go through the `ingest` `ContentResolver` on `ChangedFile.path` — so this is report hygiene, not a traversal guard.) Cross-object, so it lives here where all `units` + `findings` are in scope.
+- [x] Unit tests (dedupe; deterministic stable sort incl. `line=None` ordering; **out-of-scope `path` dropped/flagged**)
 
 ### Phase 10 — Graph wiring
 - [ ] `agent.py` — `StateGraph`; `START → ingest → detect`; conditional `Send` fan-out → `review`; `review → aggregate → report → END`
