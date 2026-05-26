@@ -1,5 +1,15 @@
 # code-review-agent
 
+[![CI](https://github.com/spanosg131/code-review-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/spanosg131/code-review-agent/actions/workflows/ci.yml)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![LangGraph](https://img.shields.io/badge/LangGraph-1.x-1C3C3C?logo=langchain&logoColor=white)](https://docs.langchain.com/oss/python/releases/langgraph-v1)
+[![Pydantic v2](https://img.shields.io/badge/Pydantic-v2-E92063?logo=pydantic&logoColor=white)](https://docs.pydantic.dev/latest/)
+[![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker&logoColor=white)](#docker)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Checked with mypy](https://img.shields.io/badge/mypy-strict-2A6DB2?logo=python&logoColor=white)](https://mypy-lang.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](#license)
+
 LLM-first, multi-language **code & CI/CD review agent** built on
 [LangGraph](https://docs.langchain.com/oss/python/releases/langgraph-v1). It
 takes a diff (local `git diff` or a CI job), detects each changed file's
@@ -256,6 +266,62 @@ git diff | docker compose run --rm review --repo /workspace --reporter terminal
 `file` artifacts to the host-visible `./reports`, and pins `SKILLS_PATH` /
 `REVIEW_CONFIG` to the bundled absolute paths. Drop the `./src` bind mount for
 production (source is already baked in).
+
+### Review another repo on your machine
+
+Point the worker at **any** local checkout: mount it read-only at `/workspace`
+and forward your LLM key. Build the image once —
+
+```bash
+docker build -t code-review-agent:dev .
+```
+
+— then review another repo (replace `/path/to/your-repo`):
+
+```bash
+docker run --rm \
+  -e OPENAI_API_KEY \
+  -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/workspace \
+  -v /path/to/your-repo:/workspace:ro \
+  code-review-agent:dev \
+    "HEAD~1...HEAD" \
+    --repo /workspace \
+    --reporter terminal
+```
+
+The positional argument is the diff to review:
+
+| Argument | Reviews |
+| --- | --- |
+| `HEAD~1...HEAD` | the latest commit |
+| `main...my-feature` | a feature branch against `main` |
+| *(omitted)* | uncommitted working-tree changes |
+
+To keep a Markdown + JSON report, add the `file` reporter and mount a writable
+output dir (the report lands in `./reports` on your host):
+
+```bash
+docker run --rm \
+  -e OPENAI_API_KEY \
+  -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/workspace \
+  -v /path/to/your-repo:/workspace:ro \
+  -v "$PWD/reports:/reports" \
+  code-review-agent:dev \
+    "main...my-feature" \
+    --repo /workspace \
+    --reporter terminal,file
+```
+
+- **LLM key:** `-e OPENAI_API_KEY` (no value) forwards the variable from your
+  shell — `export` it first. Swap for `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY` and
+  add `--provider anthropic|google` to use another provider.
+- **No CI knobs needed.** The image bundles the trusted `skills/` and
+  `review.toml`, so local runs work out of the box; `TRUSTED_CONFIG_REF` and the
+  other trust switches matter only when reviewing untrusted PR code in CI.
+- **`safe.directory=/workspace`** avoids git's "dubious ownership" error when the
+  mounted repo is owned by a different uid than the container user.
+- A three-dot range (`base...head`) reads new-side file content with
+  `git show`, so the **read-only mount is sufficient** — no checkout needed.
 
 For a LangGraph deployment image instead of the CLI worker:
 
