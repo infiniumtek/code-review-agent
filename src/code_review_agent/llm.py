@@ -2,8 +2,9 @@
 
 A single :func:`get_llm` switches over the three supported providers
 (``openai`` · ``anthropic`` · ``google``) and returns a configured
-``langchain`` chat model. Defaults come from :data:`config.settings`; resilience
-knobs (``max_retries`` / ``timeout``) are applied uniformly.
+``langchain`` chat model. Defaults come from :data:`config.settings`; timeout is
+applied at the client layer, while retry budgeting is owned by the review node so
+provider-client retries cannot multiply the node retry loop.
 
 ``temperature`` is **silently omitted** for models whose API rejects it (the
 OpenAI gpt-5 family and the o-series reasoning models, which accept only the
@@ -77,7 +78,7 @@ def get_llm(
 
     kwargs: dict[str, Any] = {
         "model": model,
-        "max_retries": settings.llm_max_retries,
+        "max_retries": 0,
         "timeout": settings.llm_timeout_seconds,
     }
     if _omits_temperature(model):

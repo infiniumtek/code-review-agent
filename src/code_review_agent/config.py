@@ -158,7 +158,7 @@ class SkillsConfig(BaseModel):
 class ReviewSettings(BaseModel):
     """``[review]`` table — per-unit token budget + ignore globs."""
 
-    max_unit_tokens: int = 100_000
+    max_unit_tokens: int = Field(default=100_000, gt=0)
     ignore: list[str] = Field(default_factory=list)
 
 
@@ -210,7 +210,13 @@ def _git_show(ref: str, repo_path: str) -> str | None:
     return proc.stdout
 
 
-def _read_review_config_source(settings: Settings) -> str | None:
+def _read_review_config_source(
+    *,
+    trusted_config_ref: str,
+    trusted_config_path: str,
+    review_config: Path,
+    in_ci: bool,
+) -> str | None:
     """Return raw ``review.toml`` text from the trusted source, or ``None``.
 
     Trusted ref set → ``git show <ref>:<trusted_config_path>`` (repo-relative),
@@ -219,21 +225,43 @@ def _read_review_config_source(settings: Settings) -> str | None:
     PR-controlled working tree). Local with no trusted ref → the filesystem
     ``review_config`` file.
     """
-    ref = settings.trusted_config_ref.strip()
+    ref = trusted_config_ref.strip()
     if ref:
-        return _git_show(ref, settings.trusted_config_path)
-    if _is_ci():
+        return _git_show(ref, trusted_config_path)
+    if in_ci:
         raise UntrustedConfigError(
             "Running in CI without TRUSTED_CONFIG_REF: refusing to read the "
             "PR-controlled working-tree review.toml. Set TRUSTED_CONFIG_REF to a "
             "trusted base ref (or to the current ref to explicitly opt in)."
         )
-    path = settings.review_config
     try:
-        return path.read_text(encoding="utf-8")
+        return review_config.read_text(encoding="utf-8")
     except FileNotFoundError:
-        log.warning("review_config_missing", path=str(path))
+        log.warning("review_config_missing", path=str(review_config))
         return None
+
+
+@lru_cache(maxsize=16)
+def _load_review_config_cached(
+    trusted_config_ref: str,
+    trusted_config_path: str,
+    review_config: str,
+    in_ci: bool,
+) -> ReviewConfig:
+    raw = _read_review_config_source(
+        trusted_config_ref=trusted_config_ref,
+        trusted_config_path=trusted_config_path,
+        review_config=Path(review_config),
+        in_ci=in_ci,
+    )
+    if raw is None:
+        return ReviewConfig()
+    try:
+        data = tomllib.loads(raw)
+    except tomllib.TOMLDecodeError as exc:
+        log.warning("review_config_parse_error", error=str(exc))
+        return ReviewConfig()
+    return ReviewConfig.model_validate(data)
 
 
 def load_review_config(settings: Settings | None = None) -> ReviewConfig:
@@ -249,15 +277,12 @@ def load_review_config(settings: Settings | None = None) -> ReviewConfig:
     — a deliberate fail-closed exit, not a graceful degradation.
     """
     settings = settings or get_settings()
-    raw = _read_review_config_source(settings)
-    if raw is None:
-        return ReviewConfig()
-    try:
-        data = tomllib.loads(raw)
-    except tomllib.TOMLDecodeError as exc:
-        log.warning("review_config_parse_error", error=str(exc))
-        return ReviewConfig()
-    return ReviewConfig.model_validate(data)
+    return _load_review_config_cached(
+        settings.trusted_config_ref,
+        settings.trusted_config_path,
+        str(settings.review_config),
+        _is_ci(),
+    ).model_copy(deep=True)
 
 
 def resolved_extra_paths(config: ReviewConfig, settings: Settings | None = None) -> list[str]:

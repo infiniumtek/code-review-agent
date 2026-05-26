@@ -133,7 +133,12 @@ def build_review_prompts(
 
 
 def estimate_tokens(text: str) -> int:
-    """Approximate token count using the project heuristic: ~4 chars/token."""
+    """Approximate prompt text tokens using the project heuristic: ~4 chars/token.
+
+    Structured-output schema/tool definitions also consume provider context, but
+    they are injected by the chat model wrapper and are not included in this
+    local text estimate.
+    """
 
     if not text:
         return 0

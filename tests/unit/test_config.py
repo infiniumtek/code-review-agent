@@ -7,10 +7,12 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from code_review_agent import config
 from code_review_agent.config import (
     ReviewConfig,
+    ReviewSettings,
     Settings,
     UntrustedConfigError,
     load_review_config,
@@ -84,6 +86,22 @@ def test_malformed_toml_returns_defaults(tmp_path: Path) -> None:
     assert cfg == ReviewConfig()
 
 
+@pytest.mark.parametrize("value", [0, -5])
+def test_review_settings_rejects_non_positive_token_budget(value: int) -> None:
+    with pytest.raises(ValidationError, match="greater than 0"):
+        ReviewSettings(max_unit_tokens=value)
+
+
+def test_non_positive_token_budget_fails_at_config_load(tmp_path: Path) -> None:
+    (tmp_path / "review.toml").write_text(
+        "[review]\nmax_unit_tokens = 0\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="max_unit_tokens"):
+        load_review_config(_settings(tmp_path))
+
+
 def test_trusted_ref_ignores_working_tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """With TRUSTED_CONFIG_REF set, the loader reads the trusted ref and never
     the (untrusted) PR-head working tree."""
@@ -108,6 +126,27 @@ def test_trusted_ref_unavailable_falls_back_to_defaults(
     monkeypatch.setattr(config, "_git_show", lambda ref, path: None)
     cfg = load_review_config(_settings(tmp_path, trusted_config_ref="missing-ref"))
     assert cfg == ReviewConfig()
+
+
+def test_load_review_config_caches_trusted_ref_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = 0
+
+    def fake_git_show(ref: str, repo_path: str) -> str:
+        nonlocal calls
+        calls += 1
+        return TRUSTED_TOML
+
+    monkeypatch.setattr(config, "_git_show", fake_git_show)
+    settings = _settings(tmp_path, trusted_config_ref="origin/cache-test")
+
+    first = load_review_config(settings)
+    second = load_review_config(settings)
+
+    assert calls == 1
+    assert first == second
+    assert first is not second
 
 
 def test_trusted_ref_reads_repo_relative_path_not_review_config(

@@ -58,7 +58,7 @@ def test_openai_is_default_provider() -> None:
     assert model.provider == "openai"
     assert model.kwargs["api_key"] == "sk-openai"
     assert model.kwargs["model"] == "gpt-4o"
-    assert model.kwargs["max_retries"] == 2
+    assert model.kwargs["max_retries"] == 0
     assert model.kwargs["timeout"] == 60
 
 
