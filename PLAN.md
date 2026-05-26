@@ -219,9 +219,9 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] Integration test: compiled graph end-to-end with mocked LLM + a recorded diff fixture
 
 ### Phase 11 — Reporters: registry + terminal + file
-- [ ] `reporters/` registry that runs a **composable list** (each independent, failures non-fatal); `report` node resolves the list (CLI > env > `review.toml` > `auto`)
-- [ ] `terminal` + `file` (`review-report.md` + `.json` under `report_dir`) reporters; advisory disclaimer
-- [ ] Unit tests (multi-reporter dispatch; one reporter failing doesn't block others)
+- [x] `reporters/` registry that runs a **composable list** (each independent, failures non-fatal); `report` node resolves the list (CLI > env > `review.toml` > `auto`)
+- [x] `terminal` + `file` (`review-report.md` + `.json` under `report_dir`) reporters; advisory disclaimer
+- [x] Unit tests (multi-reporter dispatch; one reporter failing doesn't block others)
 
 ### Phase 12 — Reporters: github + gitlab + auto-detect
 - [ ] `github` + `gitlab` reporters — **idempotent**: find the existing bot comment/note by a stable hidden marker (`<!-- code-review-agent -->`) and update in place, else create; `auto` expansion from `GITHUB_ACTIONS`/`GITLAB_CI`/`JENKINS_URL` (platform reporter + terminal; +file on Jenkins/unknown)

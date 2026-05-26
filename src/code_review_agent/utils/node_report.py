@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+from code_review_agent.config import get_settings, load_review_config
+from code_review_agent.reporters import (
+    ReportContext,
+    resolve_report_dir,
+    resolve_reporter_names,
+    run_reporters,
+)
 from code_review_agent.utils.state import AgentState, Finding
 
 ADVISORY_DISCLAIMER = (
@@ -30,13 +37,19 @@ def render_report(state: AgentState) -> str:
 
 
 def report(state: AgentState) -> dict[str, str]:
-    """LangGraph report node: materialize the rendered report.
+    """LangGraph report node: render once and publish via configured reporters."""
 
-    Reporter dispatch and side effects are Phase 11. Phase 10 keeps this node
-    pure so the fully wired graph can terminate with ``AgentState.report`` set.
-    """
-
-    return {"report": render_report(state)}
+    rendered = render_report(state)
+    settings = get_settings()
+    review_config = load_review_config(settings)
+    context = ReportContext(
+        report=rendered,
+        findings=state.findings,
+        report_dir=resolve_report_dir(settings, review_config),
+        advisory_disclaimer=ADVISORY_DISCLAIMER,
+    )
+    run_reporters(context, resolve_reporter_names(state, settings, review_config))
+    return {"report": rendered}
 
 
 def _render_finding(finding: Finding) -> list[str]:

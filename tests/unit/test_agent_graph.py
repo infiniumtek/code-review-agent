@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
+from code_review_agent import config
 from code_review_agent.agent import agent, route_review_units
 from code_review_agent.utils.state import (
     AgentState,
@@ -29,7 +34,20 @@ def _unit(key: str = "python") -> ReviewUnit:
     )
 
 
-def test_agent_empty_diff_runs_full_pipeline_and_preserves_overrides() -> None:
+@pytest.fixture(autouse=True)
+def _clear_config_caches() -> None:
+    config.get_settings.cache_clear()
+    config._load_review_config_cached.cache_clear()
+    yield
+    config.get_settings.cache_clear()
+    config._load_review_config_cached.cache_clear()
+
+
+def test_agent_empty_diff_runs_full_pipeline_and_preserves_overrides(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("REPORT_DIR", str(tmp_path))
     result = agent.invoke(
         {
             "diff": "",
