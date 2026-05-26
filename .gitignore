@@ -26,6 +26,8 @@ data/*
 # Reporter artifacts (the `file` reporter writes these)
 review-report.md
 review-report.json
+reports/*
+!reports/.gitkeep
 
 # LangGraph local dev
 .langgraph_api/

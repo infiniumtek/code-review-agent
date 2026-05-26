@@ -2,7 +2,7 @@
 #
 # Platform-neutral review worker. Entrypoint = the `code-review` CLI; SCM/CI
 # integration is just a runtime-selected reporter. The reviewed checkout is
-# mounted at /workspace (the agent only reads it — never writes back).
+# mounted read-only at /workspace; file artifacts belong under /reports.
 
 FROM python:3.13-slim AS base
 
@@ -28,8 +28,11 @@ COPY review.toml ./review.toml
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-# Non-root runtime user.
-RUN useradd --create-home --uid 1000 appuser && chown -R appuser:appuser /app
+# Non-root runtime user. /reports is the default file-reporter target and may
+# be replaced by a host-visible bind mount at runtime.
+RUN useradd --create-home --uid 1000 appuser \
+    && mkdir -p /reports \
+    && chown -R appuser:appuser /app /reports
 USER appuser
 
 # Bundled, trusted defaults (overridable at runtime). REVIEW_CONFIG is the
@@ -37,10 +40,12 @@ USER appuser
 # the repo-relative TRUSTED_CONFIG_PATH (default "review.toml") via `git show`,
 # so this absolute path is never passed to git.
 ENV SKILLS_PATH=/app/skills \
-    REVIEW_CONFIG=/app/review.toml
+    REVIEW_CONFIG=/app/review.toml \
+    REPORT_DIR=/reports
 
-# Mount the checkout to review here.
-WORKDIR /workspace
+# Run from the trusted application directory, not from the PR-controlled
+# checkout. Review mounted code explicitly with `--repo /workspace`.
+WORKDIR /app
 
 ENTRYPOINT ["code-review"]
 CMD ["--help"]

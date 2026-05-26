@@ -34,7 +34,8 @@ ignore = [
 # Precedence: CLI --reporter > REPORTER env > this list > "auto".
 reporters = ["auto"]
 
-# Where the `file` reporter writes review-report.md / review-report.json.
+# Local default for the `file` reporter. Containers/CI should override REPORT_DIR
+# to a writable artifact mount outside the reviewed checkout.
 report_dir = "."
 
 # Minimum finding severity that makes the run exit non-zero. "off" = never fail on findings.

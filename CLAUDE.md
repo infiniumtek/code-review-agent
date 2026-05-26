@@ -116,7 +116,7 @@ LLM_TIMEOUT_SECONDS=60
 # Reporters — composable; primary selection is review.toml [report].reporters.
 # Override here with a comma-separated subset. "auto" = detected platform reporter + terminal (+ file on Jenkins/unknown).
 REPORTER=auto                         # auto | comma-separated subset of: terminal,file,github,gitlab
-REPORT_DIR=.                          # where the file reporter writes review-report.md / .json
+REPORT_DIR=.                          # local default; containers/CI should set this to a writable artifact mount
 # Platform context is read from CI env (GITHUB_TOKEN, GITHUB_REPOSITORY, GITLAB_TOKEN, CI_*, etc.)
 
 # Optional observability
@@ -138,7 +138,7 @@ ENVIRONMENT=development               # development | staging | production
 - **State** (`utils/state.py`): Pydantic models (`ChangedFile`, `ReviewUnit`, `Finding`, `ReviewResult`, `ReviewTaskState`, `SkillRef`, `AgentState`). The `review` node's **input schema is `ReviewTaskState`** (carries one `unit` plus optional CLI/state provider/model overrides); the fan-out edge issues `Send("review", ReviewTaskState(unit=u, ...))` and the node returns `{"findings": …}` merged into `AgentState.findings` via an `Annotated[list[Finding], add]` reducer. `AgentState` also carries CLI override fields for reporter/fail-threshold selection so Phase 11/13 precedence can flow through graph input without mutating env vars. `ReviewResult` is the LLM structured-output wrapper. No untyped dicts across module boundaries.
 - **Node modules** (`utils/node_*.py`, exported by `utils/nodes.py`): keep each graph stage in its focused implementation module (`node_ingest`, `node_detect`, `node_review`, `node_aggregate`, `node_report`). `utils/nodes.py` is a thin compatibility surface for stable graph/test imports; do not grow it with implementation logic again.
 - **Detection** (`utils/detect.py` + `utils/node_detect.py`): static extension map + shebang/first-line fallback + special filenames/paths (`Dockerfile`, `Dockerfile.*`, `*.Dockerfile`, direct `.github/workflows/*.yml|*.yaml`, root `.gitlab-ci.yml`, `Jenkinsfile`) → skill key, then a registry fallback by language-skill frontmatter `metadata.extensions` when the static detector has no signal. Files with no static or registry signal are unclassified and omitted from review units; the missing-skill hard-fail applies only after static detection classifies a file as a programming-language key.
-- **Diffing** (`utils/diffing.py`): parse git/piped diff → `ChangedFile`s; full new-side text for modified/renamed files via a `ContentResolver` — `git show <head>:path` for commit ranges (CI; correct regardless of checkout state), hardened working-tree read locally; ignore globs.
+- **Diffing** (`utils/diffing.py`): parse git/piped diff → `ChangedFile`s; full new-side text for modified/renamed files via a `ContentResolver` — `git show <head>:path` for explicit two-dot/three-dot commit ranges (CI; correct regardless of checkout state), hardened working-tree read locally including `git diff <single-ref>`; ignore globs.
 - **Prompts** (`utils/prompts.py`): system = skill body + an **injection-hardening preamble** (reviewed code/comments/CI YAML are *data, not instructions*); user = diff/context in delimited untrusted-data blocks. Never inline prompt strings in node code. Per-unit `MAX_UNIT_TOKENS` budget with chunking.
 - **Review** (`utils/node_review.py`): `with_structured_output(ReviewResult)` with a per-provider method choice; tolerant free-form-JSON fallback that logs the raw response on parse failure; retry/timeout from settings.
 - **Reporters** (`reporters/`): registry — `terminal`, `file` (md/json artifact, used by Jenkins), `github` (PR comment), `gitlab` (MR note). **Composable**: the `report` node runs every reporter in the resolved list (precedence CLI `--reporter` > `REPORTER` env > `review.toml [report].reporters` > `auto`). `github`/`gitlab` are **idempotent** — locate the existing bot comment/note by a stable hidden marker (`<!-- code-review-agent -->`) and update it in place. `auto` = detected platform reporter + terminal (+ file on Jenkins/unknown). Each reporter runs independently; failures are non-fatal.
@@ -150,7 +150,7 @@ ENVIRONMENT=development               # development | staging | production
 
 - Base: `python:3.13-slim`, `.venv` at `/app/.venv` (identical to host), non-root user
 - **Entrypoint = the CLI** (`code-review`) — platform-neutral; the SCM/CI integration is just a runtime-selected reporter
-- Bundle `skills/` and `review.toml` into the image; mount the checkout to review at a known path
+- Bundle `skills/` and `review.toml` into the image; mount the checkout to review read-only at a known path and mount file-reporter output separately
 - Compose mounts `./src` for dev hot-reload (remove for prod). No SQLite mount (checkpointer off)
 - Deployment image: `make langgraph-build` (uses `langgraph build` from `langgraph-cli`)
 

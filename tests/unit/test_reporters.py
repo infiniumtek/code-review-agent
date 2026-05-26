@@ -311,14 +311,25 @@ def test_explicit_empty_reporter_list_disables_reporters(tmp_path: Path) -> None
     review_config = ReviewConfig.model_validate({"report": {"reporters": []}})
 
     assert resolve_reporter_names(AgentState(), settings, review_config) == []
-    assert (
-        resolve_reporter_names(
-            AgentState(reporter_override=""),
-            settings,
-            ReviewConfig(),
-        )
-        == []
-    )
+
+
+def test_empty_reporter_overrides_fall_back_to_review_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = Settings(review_config=tmp_path / "review.toml", _env_file=None)
+    review_config = ReviewConfig.model_validate({"report": {"reporters": ["file"]}})
+
+    assert resolve_reporter_names(
+        AgentState(reporter_override=""),
+        settings,
+        review_config,
+    ) == ["file"]
+
+    monkeypatch.setenv("REPORTER", "")
+    env_settings = Settings(review_config=tmp_path / "review.toml", _env_file=None)
+
+    assert resolve_reporter_names(AgentState(), env_settings, review_config) == ["file"]
 
 
 def test_resolve_report_dir_uses_env_when_explicit_else_review_config(tmp_path: Path) -> None:

@@ -30,7 +30,7 @@ test:
 # Review a diff locally. Usage: `make review` (HEAD vs working tree) or
 # `git diff main...HEAD | ./.venv/bin/code-review --reporter terminal`.
 review:
-	git diff | $(UV) run code-review --reporter terminal
+	git diff | $(UV) run code-review --repo . --reporter terminal
 
 # Local LangGraph dev server (LangSmith Studio UI). Reads ./langgraph.json.
 dev:

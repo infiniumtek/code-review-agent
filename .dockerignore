@@ -15,13 +15,16 @@ build/
 .env
 .env.*
 
-# Tests and docs aren't needed at runtime
+# Tests and root docs aren't needed at runtime. Bundled skill SKILL.md files
+# remain part of the image.
 tests/
 data/
 examples/
-*.md
+/*.md
+!skills/**/SKILL.md
 review-report.md
 review-report.json
+reports/
 
 # LangGraph local dev
 .langgraph_api/

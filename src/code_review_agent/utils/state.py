@@ -133,9 +133,10 @@ class AgentState(BaseModel):
     :attr:`findings` via the ``add`` reducer; ``aggregate`` rewrites
     :attr:`findings` (dedupe + stable sort) and ``report`` fills :attr:`report`.
 
-    :attr:`head_ref` is set for ``base...head`` runs and selects the
-    ``git_show`` content resolver in ``ingest``; left ``None`` for local/piped
-    diffs (working-tree resolver) and diff-only runs.
+    :attr:`head_ref` is set for explicit two-dot/three-dot ranges and selects
+    the ``git_show`` content resolver in ``ingest``; left ``None`` for
+    local/piped diffs, including ``git diff <single-ref>`` (working-tree
+    resolver), and diff-only runs.
     """
 
     diff: str = ""

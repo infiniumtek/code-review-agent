@@ -36,10 +36,14 @@ def resolve_reporter_names(
 ) -> list[str]:
     """Resolve reporter names with precedence CLI > env > review.toml > auto."""
 
-    selection: str | Sequence[str]
     if state.reporter_override is not None:
-        selection = state.reporter_override
-    elif _settings_reporter_overrides_config(settings):
+        names = _parse_reporter_selection(state.reporter_override)
+        if names:
+            return _dedupe_preserving_order(_expand_auto_reporters(names))
+        log.warning("reporter_empty_override_ignored", source="cli")
+
+    selection: str | Sequence[str]
+    if _settings_reporter_overrides_config(settings):
         selection = settings.reporter
     else:
         selection = review_config.report.reporters
@@ -95,11 +99,15 @@ def _run_reporter(name: str, reporter: ReporterFn, context: ReportContext) -> No
 
 
 def _settings_reporter_overrides_config(settings: Settings) -> bool:
+    names = _parse_reporter_selection(settings.reporter)
+    if _real_env_var_is_set("REPORTER") and not names:
+        log.warning("reporter_empty_override_ignored", source="env")
+        return False
     if _real_env_var_is_set("REPORTER"):
         return True
     if "reporter" not in settings.model_fields_set:
         return False
-    return _parse_reporter_selection(settings.reporter) != [_DEFAULT_REPORTER]
+    return names != [_DEFAULT_REPORTER]
 
 
 def _settings_report_dir_overrides_config(settings: Settings) -> bool:

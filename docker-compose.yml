@@ -2,7 +2,7 @@
 # Prod: drop the ./src bind mount — source is already baked into the image.
 #
 #   docker compose build
-#   git diff | docker compose run --rm review --reporter terminal
+#   git diff | docker compose run --rm review --repo /workspace --reporter terminal
 
 services:
   review:
@@ -12,9 +12,17 @@ services:
     image: code-review-agent:dev
     env_file:
       - .env
-    working_dir: /workspace
+    environment:
+      # Pin trusted, bundled assets inside the image even when .env has local defaults.
+      SKILLS_PATH: /app/skills
+      REVIEW_CONFIG: /app/review.toml
+      # Keep file reporter artifacts outside the reviewed checkout.
+      REPORT_DIR: /reports
+    working_dir: /app
     volumes:
-      # The checkout to review (the `file` reporter writes its artifact here).
-      - .:/workspace
+      # The checkout to review; mounted read-only to enforce read-and-report behavior.
+      - .:/workspace:ro
+      # Durable file reporter artifacts, host-visible after `docker compose run --rm`.
+      - ./reports:/reports
       # Dev hot-reload of source — remove for prod.
-      - ./src:/app/src
+      - ./src:/app/src:ro
