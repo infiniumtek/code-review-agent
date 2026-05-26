@@ -1,0 +1,31 @@
+# Example workflow that consumes the composite action in ./action.yml.
+# Copy this to .github/workflows/code-review.yml in the repo you want reviewed.
+
+name: Code Review
+on:
+  pull_request:
+
+# The github reporter updates a PR comment, so the token needs write access to
+# pull requests. contents:read is enough to check out and diff.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the PR base commit is available for the diff range
+          # and for `git show <base>:review.toml` (the trusted-config read).
+          fetch-depth: 0
+
+      - name: Review the diff
+        uses: your-org/code-review-agent/examples/github-action@v1
+        with:
+          image: ghcr.io/your-org/code-review-agent:latest
+          provider: openai
+          llm-api-key: ${{ secrets.OPENAI_API_KEY }}
+          fail-on: high          # set to "off" for advisory-only (never blocks the PR)
+          # reporter: auto,file   # uncomment to also archive a report artifact

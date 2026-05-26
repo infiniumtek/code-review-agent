@@ -1,0 +1,72 @@
+// Code Review Agent — Jenkins pipeline stage.
+//
+// Jenkins has no native PR comments, so the review is emitted by the `file`
+// reporter and archived as a build artifact (plus `terminal` in the console
+// log). Use a multibranch / GitHub-PR job so the CHANGE_* vars are populated.
+// See ../README.md for the shared container contract.
+//
+// Prerequisites:
+//   * Docker available on the agent (this uses a docker agent).
+//   * A Secret-text credential `code-review-openai-api-key` holding the LLM key.
+//
+// This is a complete minimal pipeline; lift the `Code Review` stage into an
+// existing Jenkinsfile if you already have one.
+
+pipeline {
+  agent any
+
+  environment {
+    // Binds the secret to OPENAI_API_KEY for the build.
+    OPENAI_API_KEY = credentials('code-review-openai-api-key')
+    DEFAULT_LLM_PROVIDER = 'openai'
+  }
+
+  stages {
+    stage('Code Review') {
+      when { changeRequest() }   // only on pull/merge requests
+      agent {
+        docker {
+          image 'ghcr.io/your-org/code-review-agent:latest'
+          // Reuse the outer node's checkout: cwd becomes the workspace, which is
+          // what config.py's `git show <base>:review.toml` needs.
+          reuseNode true
+        }
+      }
+      steps {
+        // The worker image ships git; the agent runs with cwd = the checkout.
+        sh '''
+          set -eu
+
+          # Trust the workspace even if its uid differs from the container user.
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=safe.directory
+          export GIT_CONFIG_VALUE_0="$WORKSPACE"
+
+          # Pin the trusted bundled assets (image sets these; re-asserted here).
+          export SKILLS_PATH=/app/skills
+          export REVIEW_CONFIG=/app/review.toml
+
+          # Resolve the trusted base from the PR target branch, never the PR head.
+          git fetch --no-tags origin "$CHANGE_TARGET"
+          BASE="$(git merge-base "origin/$CHANGE_TARGET" HEAD)"
+          export TRUSTED_CONFIG_REF="$BASE"
+          export TRUSTED_CONFIG_PATH=review.toml
+
+          export REPORT_DIR="$WORKSPACE/code-review"
+          mkdir -p "$REPORT_DIR"
+
+          code-review "${BASE}...HEAD" \
+            --repo "$WORKSPACE" \
+            --reporter file,terminal \
+            --fail-on high
+        '''
+      }
+      post {
+        always {
+          // Archive the durable report even when the gate fails the build.
+          archiveArtifacts artifacts: 'code-review/review-report.*', allowEmptyArchive: true
+        }
+      }
+    }
+  }
+}

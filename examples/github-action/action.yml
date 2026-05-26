@@ -1,0 +1,127 @@
+# Code Review Agent — GitHub composite action.
+#
+# Runs the worker container against a pull request and posts the review as a
+# single, idempotent PR comment (the github reporter updates its marked comment
+# in place on re-runs). See ../README.md for the shared container contract.
+#
+# Usage (see example-workflow.yml for a complete workflow):
+#
+#   - uses: actions/checkout@v4
+#     with:
+#       fetch-depth: 0                       # base commit must be in history
+#   - uses: your-org/code-review-agent/examples/github-action@v1
+#     with:
+#       provider: openai
+#       llm-api-key: ${{ secrets.OPENAI_API_KEY }}
+#
+# The consuming job needs `permissions: pull-requests: write` so the built-in
+# GITHUB_TOKEN can create/update the PR comment.
+
+name: Code Review Agent
+description: LLM-first multi-language code & CI/CD review of a pull request diff; posts an idempotent PR comment.
+author: code-review-agent
+
+inputs:
+  image:
+    description: Worker container image built from this repo's Dockerfile.
+    required: false
+    default: ghcr.io/your-org/code-review-agent:latest
+  llm-api-key:
+    description: API key for the selected provider (store as a secret).
+    required: true
+  provider:
+    description: "LLM provider: openai | anthropic | google."
+    required: false
+    default: openai
+  model:
+    description: LLM model override (blank = image default, gpt-5-mini).
+    required: false
+    default: ""
+  fail-on:
+    description: "Minimum severity that fails the job: off | info | low | medium | high | critical."
+    required: false
+    default: high
+  reporter:
+    description: Reporter selection (auto = github + terminal on Actions). Add ,file to also archive an artifact.
+    required: false
+    default: auto
+  base-ref:
+    description: Trusted base ref/SHA for the diff and review.toml. Blank = the PR base SHA.
+    required: false
+    default: ""
+  allow-repo-skills:
+    description: Honor review.toml [skills].extra_paths from the repo (untrusted; off by default).
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Run code review
+      shell: bash
+      # Pass dynamic values through the environment (not string-interpolated into
+      # the script) so a crafted input cannot inject shell.
+      env:
+        CRA_IMAGE: ${{ inputs.image }}
+        CRA_LLM_API_KEY: ${{ inputs.llm-api-key }}
+        CRA_PROVIDER: ${{ inputs.provider }}
+        CRA_MODEL: ${{ inputs.model }}
+        CRA_FAIL_ON: ${{ inputs.fail-on }}
+        CRA_REPORTER: ${{ inputs.reporter }}
+        CRA_BASE_REF: ${{ inputs.base-ref }}
+        CRA_ALLOW_REPO_SKILLS: ${{ inputs.allow-repo-skills }}
+        GITHUB_TOKEN: ${{ github.token }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      run: |
+        set -euo pipefail
+
+        # --- Resolve the trusted base ref (rule 2 in ../README.md) -------------
+        BASE="${CRA_BASE_REF:-$PR_BASE_SHA}"
+        if [ -z "$BASE" ]; then
+          echo "::error::No base ref. Run on pull_request, or set the 'base-ref' input." >&2
+          exit 1
+        fi
+        if ! git -C "$GITHUB_WORKSPACE" cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+          echo "::error::Base commit ${BASE} is not in history. Use actions/checkout with fetch-depth: 0." >&2
+          exit 1
+        fi
+
+        # --- Map the provider key to the env var the agent expects -------------
+        case "$CRA_PROVIDER" in
+          openai)    export OPENAI_API_KEY="$CRA_LLM_API_KEY" ;;
+          anthropic) export ANTHROPIC_API_KEY="$CRA_LLM_API_KEY" ;;
+          google)    export GOOGLE_API_KEY="$CRA_LLM_API_KEY" ;;
+          *) echo "::error::Unknown provider '${CRA_PROVIDER}'." >&2; exit 1 ;;
+        esac
+
+        # --- Optional CLI overrides --------------------------------------------
+        EXTRA=(--provider "$CRA_PROVIDER")
+        [ -n "$CRA_MODEL" ] && EXTRA+=(--model "$CRA_MODEL")
+        [ "$CRA_ALLOW_REPO_SKILLS" = "true" ] && EXTRA+=(--allow-repo-skills)
+
+        mkdir -p "${RUNNER_TEMP}/code-review-reports"
+
+        # docker run does NOT inherit the runner env, so every var is passed
+        # explicitly. `-w /workspace` puts cwd inside the checkout so config.py's
+        # `git show <base>:review.toml` resolves (rule 1).
+        docker run --rm \
+          -w /workspace \
+          -e CI=true -e GITHUB_ACTIONS=true \
+          -e GITHUB_TOKEN -e GITHUB_REPOSITORY -e GITHUB_API_URL -e GITHUB_REF \
+          -e GITHUB_EVENT_PATH=/github/event.json \
+          -e OPENAI_API_KEY -e ANTHROPIC_API_KEY -e GOOGLE_API_KEY \
+          -e SKILLS_PATH=/app/skills \
+          -e REVIEW_CONFIG=/app/review.toml \
+          -e TRUSTED_CONFIG_REF="$BASE" \
+          -e TRUSTED_CONFIG_PATH=review.toml \
+          -e REPORT_DIR=/reports \
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/workspace \
+          -v "${GITHUB_WORKSPACE}:/workspace:ro" \
+          -v "${GITHUB_EVENT_PATH}:/github/event.json:ro" \
+          -v "${RUNNER_TEMP}/code-review-reports:/reports" \
+          "$CRA_IMAGE" \
+          "${BASE}...HEAD" \
+          --repo /workspace \
+          --reporter "$CRA_REPORTER" \
+          --fail-on "$CRA_FAIL_ON" \
+          "${EXTRA[@]}"

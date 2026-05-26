@@ -148,7 +148,8 @@ ENVIRONMENT=development               # development | staging | production
 
 ## 7. Docker
 
-- Base: `python:3.13-slim`, `.venv` at `/app/.venv` (identical to host), non-root user
+- Base: `python:3.13-slim` (+ `git`, a runtime dep — the CLI/config shell out to `git diff`/`git show`; slim omits it), `.venv` at `/app/.venv` (identical to host), non-root user
+- **CI examples run the container with cwd = the mounted checkout** so `config.py`'s bare `git show <base>:review.toml` resolves (`examples/` + §6 trust model); cwd outside the checkout silently degrades the trusted-config read to defaults
 - **Entrypoint = the CLI** (`code-review`) — platform-neutral; the SCM/CI integration is just a runtime-selected reporter
 - Bundle `skills/` and `review.toml` into the image; mount the checkout to review read-only at a known path and mount file-reporter output separately
 - Compose mounts `./src` for dev hot-reload (remove for prod). No SQLite mount (checkpointer off)

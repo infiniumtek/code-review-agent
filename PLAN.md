@@ -239,7 +239,9 @@ Ship phases in order; don't start the next until `make fmt lint type test` is gr
 - [x] `skills/dockerfile`, `skills/github-actions`, `skills/gitlab-ci`, `skills/jenkins` SKILL.md (config-gated)
 
 ### Phase 16 — CI wrapper examples
-- [ ] `examples/github-action/action.yml`, `examples/gitlab-ci/.gitlab-ci.yml` snippet, `examples/jenkins/Jenkinsfile` stage (all invoke the same container/CLI; show `TRUSTED_CONFIG_REF`/artifact archiving)
+- [x] `examples/github-action/action.yml` (+ `example-workflow.yml`), `examples/gitlab-ci/.gitlab-ci.yml` snippet, `examples/jenkins/Jenkinsfile` stage (all invoke the same container/CLI; show `TRUSTED_CONFIG_REF`/artifact archiving) + `examples/README.md` documenting the shared container contract
+- [x] **Container must run with cwd = the checkout** so `config.py`'s bare `git show <base>:review.toml` resolves (the diff content resolver uses `cwd=repo_root`, but the trusted-config read does not). cwd outside the checkout → trusted-ref read silently degrades to default config. GitHub: `docker run -w /workspace`; GitLab/Jenkins: the job already runs in the clone dir.
+- [x] **Dockerfile installs `git`** — runtime dep for the CLI/config `git diff`/`git show` (python:3.13-slim omits it; CI clones also need it). Examples set `safe.directory` (git "dubious ownership") and pass CI markers into the container (`docker run` does not inherit the runner env).
 
 ### Phase 17 — Tests + polish
 - [ ] End-to-end fixture integration test across multiple languages + one CI target

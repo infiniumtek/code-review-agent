@@ -9,6 +9,15 @@ FROM python:3.13-slim AS base
 # uv for reproducible installs (exact versions from uv.lock). Pin in a real release.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+# git is a RUNTIME dependency, not just a build tool: the CLI shells out to
+# `git diff`/`git show` (utils/diffing.py, cli.py) and config.py reads the
+# trusted-ref review.toml via `git show <ref>:review.toml`. CI runners also clone
+# into the job container with git. python:3.13-slim omits git, so install it —
+# without it every CI/range review fails.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV UV_PROJECT_ENVIRONMENT=/app/.venv \
     UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \

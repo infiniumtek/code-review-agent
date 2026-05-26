@@ -1,0 +1,54 @@
+# Code Review Agent — GitLab CI job (snippet).
+#
+# Reviews a merge request diff and posts the result as a single, idempotent MR
+# note (updated in place on re-runs). Add this job to your .gitlab-ci.yml, or
+# `include:` this file. See ../README.md for the shared container contract.
+#
+# Required CI/CD variables (Settings > CI/CD > Variables, masked):
+#   OPENAI_API_KEY   the LLM key matching DEFAULT_LLM_PROVIDER
+#   GITLAB_TOKEN     a project/group access token or PAT with the `api` scope.
+#                    CI_JOB_TOKEN usually CANNOT create MR notes — set this.
+#
+# The job runs INSIDE the worker image, so cwd is the cloned project dir
+# (CI_PROJECT_DIR) — exactly what config.py's `git show <base>:review.toml`
+# needs. GitLab also clones with git, which the image now ships.
+
+code_review:
+  stage: test
+  image: ghcr.io/your-org/code-review-agent:latest
+  # Only run on merge request pipelines (where the *_MERGE_REQUEST_* vars exist).
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  variables:
+    # Full history so the MR diff base SHA is present for the range + git show.
+    GIT_DEPTH: "0"
+    # Pin the trusted bundled assets (the image sets these; re-asserted for clarity).
+    SKILLS_PATH: /app/skills
+    REVIEW_CONFIG: /app/review.toml
+    # Read review.toml from the MR's TRUSTED base, never the MR head. A PR/MR
+    # cannot rewrite its own review rules. Without this the run fails closed.
+    TRUSTED_CONFIG_REF: $CI_MERGE_REQUEST_DIFF_BASE_SHA
+    TRUSTED_CONFIG_PATH: review.toml
+    # File-reporter output, kept under the ephemeral CI clone for artifact upload.
+    REPORT_DIR: $CI_PROJECT_DIR/code-review
+    DEFAULT_LLM_PROVIDER: openai
+    # Trust the clone even if its uid differs from the image user (git "dubious
+    # ownership"). GITLAB_TOKEN / OPENAI_API_KEY come from masked CI/CD variables.
+    GIT_CONFIG_COUNT: "1"
+    GIT_CONFIG_KEY_0: safe.directory
+    GIT_CONFIG_VALUE_0: $CI_PROJECT_DIR
+  script:
+    - mkdir -p "$REPORT_DIR"
+    # gitlab → MR note; file → archived artifact; terminal → job log.
+    # Three-dot range: the base SHA is the diff base, content read from the head.
+    - >
+      code-review "${CI_MERGE_REQUEST_DIFF_BASE_SHA}...${CI_COMMIT_SHA}"
+      --repo "$CI_PROJECT_DIR"
+      --reporter gitlab,file,terminal
+      --fail-on high
+  artifacts:
+    name: code-review-$CI_COMMIT_SHORT_SHA
+    when: always
+    expire_in: 1 week
+    paths:
+      - code-review/
