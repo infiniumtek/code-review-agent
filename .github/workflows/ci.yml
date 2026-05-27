@@ -1,11 +1,12 @@
 name: CI
 
-# CI (lint + types + tests) runs on every push — any branch or tag.
-# The Docker image is built and published ONLY on tag pushes.
+# CI (lint + types + tests) runs on every branch push and on release tags.
+# The Docker image is built and published ONLY on release tags (v*), so an
+# arbitrary/scratch tag never publishes an image.
 on:
   push:
     branches: ["**"]
-    tags: ["**"]
+    tags: ["v*"]
 
 # Cancel superseded runs on the same ref, but never interrupt a tag release.
 concurrency:
