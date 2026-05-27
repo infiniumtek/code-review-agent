@@ -1,6 +1,6 @@
 # code-review-agent
 
-[![CI](https://github.com/spanosg131/code-review-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/spanosg131/code-review-agent/actions/workflows/ci.yml)
+[![CI](https://github.com/infiniumtek/code-review-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/infiniumtek/code-review-agent/actions/workflows/ci.yml)
 [![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![LangGraph](https://img.shields.io/badge/LangGraph-1.x-1C3C3C?logo=langchain&logoColor=white)](https://docs.langchain.com/oss/python/releases/langgraph-v1)
