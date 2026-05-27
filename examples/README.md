@@ -19,15 +19,24 @@ examples.
 
 ## The worker image
 
-All three examples assume a published worker image built from this repo's
-[`Dockerfile`](../Dockerfile):
+Every example runs the **same** worker image built from this repo's
+[`Dockerfile`](../Dockerfile). Get it into the job one of two ways:
 
-```bash
-docker build -t ghcr.io/your-org/code-review-agent:latest .
-docker push   ghcr.io/your-org/code-review-agent:latest
-```
+- **Build inline (no registry needed).** The GitHub Actions example
+  ([`example-workflow.yml`](github-action/example-workflow.yml)) checks out the
+  agent source and `docker build`s it in the job, then passes the local tag as
+  the `image:` input — nothing has to be published first.
+- **Pull a published image.** Build once, push to a registry, then reference
+  that tag (used by the GitLab/Jenkins examples; the GitHub one can do this too
+  by dropping its build steps):
 
-Replace `ghcr.io/your-org/code-review-agent:latest` everywhere with your image.
+  ```bash
+  docker build -t ghcr.io/your-org/code-review-agent:latest .
+  docker push   ghcr.io/your-org/code-review-agent:latest
+  ```
+
+  Replace `ghcr.io/your-org/code-review-agent:latest` everywhere with your image.
+
 The image bundles the **trusted** `skills/` and `review.toml` and ships `git`
 (the CLI shells out to `git diff`/`git show`).
 

@@ -1,9 +1,19 @@
-# Example workflow that consumes the composite action in ./action.yml.
-# Copy this to .github/workflows/code-review.yml in the repo you want reviewed.
+# Example workflow: build the code-review-agent worker image from source and run
+# it against a pull request via the composite action in ./action.yml.
+#
+# Copy this to .github/workflows/code-review.yml in the repo you want reviewed,
+# then replace "your-org/code-review-agent" with the agent repo you use and pin
+# the ref to a tag/SHA for reproducibility.
+#
+# This builds the image inline, so nothing has to be published to a registry
+# first. To use a pre-published image instead, delete the source-checkout and
+# build steps and pass that image directly (see ../README.md "The worker image").
 
 name: Code Review
+
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 # The github reporter updates a PR comment, so the token needs write access to
 # pull requests. contents:read is enough to check out and diff.
@@ -13,19 +23,38 @@ permissions:
 
 jobs:
   review:
+    # Skip drafts; the ready_for_review trigger runs the review once a draft PR
+    # is marked ready for review.
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the pull request
+        uses: actions/checkout@v4
         with:
           # Full history so the PR base commit is available for the diff range
           # and for `git show <base>:review.toml` (the trusted-config read).
           fetch-depth: 0
 
-      - name: Review the diff
-        uses: your-org/code-review-agent/examples/github-action@v1
+      - name: Check out the code-review-agent source
+        uses: actions/checkout@v4
         with:
-          image: ghcr.io/your-org/code-review-agent:latest
+          repository: your-org/code-review-agent
+          ref: main
+          path: .code-review-agent-source
+          persist-credentials: false
+
+      - name: Build the worker image
+        run: docker build -t code-review-agent:ci .code-review-agent-source
+
+      - name: Review the diff
+        # Reuse the composite action from the source checked out above, so its
+        # ref always matches the image we just built (and avoids a second fetch).
+        uses: ./.code-review-agent-source/examples/github-action
+        with:
+          image: code-review-agent:ci
           provider: openai
           llm-api-key: ${{ secrets.OPENAI_API_KEY }}
           fail-on: high          # set to "off" for advisory-only (never blocks the PR)
-          # reporter: auto,file   # uncomment to also archive a report artifact
+          # model: gpt-5         # uncomment to override the image default (gpt-5-mini)
+          # reporter: auto,file  # uncomment to also archive a report artifact

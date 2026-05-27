@@ -9,8 +9,9 @@
 #   - uses: actions/checkout@v4
 #     with:
 #       fetch-depth: 0                       # base commit must be in history
-#   - uses: your-org/code-review-agent/examples/github-action@v1
+#   - uses: your-org/code-review-agent/examples/github-action@main   # pin to a tag/SHA
 #     with:
+#       image: code-review-agent:ci          # a locally-built tag or a published image
 #       provider: openai
 #       llm-api-key: ${{ secrets.OPENAI_API_KEY }}
 #
@@ -23,7 +24,7 @@ author: code-review-agent
 
 inputs:
   image:
-    description: Worker container image built from this repo's Dockerfile.
+    description: Worker image built from this repo's Dockerfile — a locally-built tag or a published registry image.
     required: false
     default: ghcr.io/your-org/code-review-agent:latest
   llm-api-key:
