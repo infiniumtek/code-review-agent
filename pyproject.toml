@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "code-review-agent"
-version = "0.1.0"
+version = "1.0.0"
 description = "LLM-first, multi-language code & CI/CD review agent on LangGraph, driven by portable Claude SKILL.md skills."
 requires-python = ">=3.13,<3.14"
 license = { text = "MIT" }

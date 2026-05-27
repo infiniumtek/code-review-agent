@@ -5,4 +5,4 @@ knowledge ships as portable SKILL.md packages. See ``PLAN.md`` for the build
 phases; ``agent.py`` exposes the compiled graph as ``agent``.
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
